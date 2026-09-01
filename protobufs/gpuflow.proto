@@ -2,19 +2,39 @@ syntax = "proto3";
 
 package gpuflow;
 
-service WorkerNode {
-    // Basic heartbeat to scheduler
-    rpc SendHeartbeat (HeartbeatRequest) returns (HeartbeatResponse) {}
-}
-
 service Scheduler {
+    // Node Registration
+    rpc RegisterNode (RegisterNodeRequest) returns (RegisterNodeResponse) {}
+    
+    // Heartbeat
+    rpc SendHeartbeat (HeartbeatRequest) returns (HeartbeatResponse) {}
+
     // Task submission
     rpc SubmitTask (TaskRequest) returns (TaskResponse) {}
 }
 
+message RegisterNodeRequest {
+    string node_id = 1;
+    string hostname = 2;
+    float cpu_total = 3;
+    float ram_total = 4;
+    float gpu_total = 5;
+    float gpu_memory_total = 6;
+}
+
+message RegisterNodeResponse {
+    bool success = 1;
+    string message = 2;
+}
+
 message HeartbeatRequest {
-    string worker_id = 1;
+    string node_id = 1;
     string status = 2;
+    int64 timestamp = 3;
+    float cpu_available = 4;
+    float ram_available = 5;
+    float gpu_available = 6;
+    float gpu_memory_available = 7;
 }
 
 message HeartbeatResponse {
