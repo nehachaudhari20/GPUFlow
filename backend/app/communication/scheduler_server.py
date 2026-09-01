@@ -12,9 +12,9 @@ import gpuflow_pb2
 import gpuflow_pb2_grpc
 
 from backend.app.scheduler.cluster_state import cluster_state
-from backend.app.scheduler.resource_manager import resource_manager
-from backend.app.models.resources import ResourceRequirements
 from backend.app.models.worker import WorkerNode
+from backend.app.models.workload import WorkloadCreate, WorkloadType, Priority
+from backend.app.services.workload_service import workload_service
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -51,35 +51,25 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
         return gpuflow_pb2.HeartbeatResponse(acknowledged=True)
 
     def SubmitTask(self, request, context):
-        online_nodes = cluster_state.get_online_nodes()
-        if not online_nodes:
-            return gpuflow_pb2.TaskResponse(
-                accepted=False,
-                message="No online worker nodes available for scheduling",
+        try:
+            payload = WorkloadCreate(
+                name=request.task_id or "grpc-task",
+                type=WorkloadType.BATCH,
+                cpu_required=request.cpu_req,
+                gpu_required=request.gpu_req,
+                ram_required=request.ram_req,
+                priority=Priority.MEDIUM,
+                estimated_duration=60,
             )
-
-        requirements = ResourceRequirements(
-            cpu=request.cpu_req,
-            gpu=request.gpu_req,
-            ram=request.ram_req,
-        )
-
-        for node in online_nodes:
-            if resource_manager.can_allocate(node.node_id, requirements):
-                job_id = request.task_id
-                if resource_manager.allocate_resources(
-                    node.node_id, requirements, job_id
-                ):
-                    cluster_state.sync_node_resources(node.node_id)
-                    return gpuflow_pb2.TaskResponse(
-                        accepted=True,
-                        message=f"Task allocated on node {node.node_id}",
-                    )
-
-        return gpuflow_pb2.TaskResponse(
-            accepted=False,
-            message="Insufficient cluster resources for task",
-        )
+            workload = workload_service.create_workload(
+                payload, job_id=request.task_id or None
+            )
+            return gpuflow_pb2.TaskResponse(
+                accepted=True,
+                message=f"Workload {workload.job_id} queued",
+            )
+        except ValueError as exc:
+            return gpuflow_pb2.TaskResponse(accepted=False, message=str(exc))
 
 def serve_grpc():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

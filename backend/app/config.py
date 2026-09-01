@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     grpc_port: int = 50051
     scheduler_address: str = "localhost:50051"
 
+    mongo_uri: str | None = None
+    mongo_database: str = "gpuflow"
+
     class Config:
         env_file = ".env"
 
