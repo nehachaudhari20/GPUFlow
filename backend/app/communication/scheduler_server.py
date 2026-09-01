@@ -12,6 +12,8 @@ import gpuflow_pb2
 import gpuflow_pb2_grpc
 
 from backend.app.scheduler.cluster_state import cluster_state
+from backend.app.scheduler.resource_manager import resource_manager
+from backend.app.models.resources import ResourceRequirements
 from backend.app.models.worker import WorkerNode
 from backend.app.config import settings
 
@@ -55,8 +57,28 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
                 accepted=False,
                 message="No online worker nodes available for scheduling",
             )
+
+        requirements = ResourceRequirements(
+            cpu=request.cpu_req,
+            gpu=request.gpu_req,
+            ram=request.ram_req,
+        )
+
+        for node in online_nodes:
+            if resource_manager.can_allocate(node.node_id, requirements):
+                job_id = request.task_id
+                if resource_manager.allocate_resources(
+                    node.node_id, requirements, job_id
+                ):
+                    cluster_state.sync_node_resources(node.node_id)
+                    return gpuflow_pb2.TaskResponse(
+                        accepted=True,
+                        message=f"Task allocated on node {node.node_id}",
+                    )
+
         return gpuflow_pb2.TaskResponse(
-            accepted=False, message="Task scheduling not implemented yet"
+            accepted=False,
+            message="Insufficient cluster resources for task",
         )
 
 def serve_grpc():
