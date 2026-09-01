@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     mongo_uri: str | None = None
     mongo_database: str = "gpuflow"
 
+    schedule_gpu_weight: float = 0.40
+    schedule_cpu_weight: float = 0.25
+    schedule_ram_weight: float = 0.15
+    schedule_health_weight: float = 0.10
+    schedule_load_balance_weight: float = 0.10
+
     class Config:
         env_file = ".env"
 

@@ -8,11 +8,13 @@ from backend.app.scheduler.cluster_state import cluster_state
 from backend.app.scheduler.resource_manager import resource_manager
 from backend.app.communication.scheduler_server import serve_grpc
 from backend.app.api.workloads import router as workloads_router
+from backend.app.api.scheduler import router as scheduler_router
 
 setup_logging()
 
 app = FastAPI(title="GPUFlow", description="Distributed GPU-Aware Workload Scheduling")
 app.include_router(workloads_router)
+app.include_router(scheduler_router)
 
 
 def timeout_checker():

@@ -15,6 +15,7 @@ from backend.app.scheduler.cluster_state import cluster_state
 from backend.app.models.worker import WorkerNode
 from backend.app.models.workload import WorkloadCreate, WorkloadType, Priority
 from backend.app.services.workload_service import workload_service
+from backend.app.scheduler.scheduler import scheduler
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -64,9 +65,15 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
             workload = workload_service.create_workload(
                 payload, job_id=request.task_id or None
             )
+            decision = scheduler.schedule_and_update(workload_service, workload)
+            if decision.allocation_success:
+                return gpuflow_pb2.TaskResponse(
+                    accepted=True,
+                    message=f"Workload {workload.job_id} scheduled on {decision.selected_node}",
+                )
             return gpuflow_pb2.TaskResponse(
                 accepted=True,
-                message=f"Workload {workload.job_id} queued",
+                message=f"Workload {workload.job_id} queued: {decision.reason}",
             )
         except ValueError as exc:
             return gpuflow_pb2.TaskResponse(accepted=False, message=str(exc))
