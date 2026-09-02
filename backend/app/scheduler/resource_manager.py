@@ -8,6 +8,7 @@ from backend.app.models.resources import (
     ResourceRequirements,
 )
 from backend.app.models.worker import WorkerNode
+from backend.app.events.event_manager import event_manager, EventType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -238,6 +239,15 @@ class ResourceManager:
                 0.0, state.allocated_gpu_memory - stored.gpu_memory
             )
             logger.info(f"Released resources on {node_id} for job {job_id}")
+
+            event_manager.log_event(
+                event_type=EventType.RESOURCE_RELEASED,
+                source="SCHEDULER",
+                job_id=job_id,
+                node_id=node_id,
+                message=f"Resources released for completed/failed job {job_id}",
+            )
+
             return True
 
     def _can_allocate_locked(

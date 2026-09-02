@@ -9,12 +9,17 @@ from backend.app.scheduler.resource_manager import resource_manager
 from backend.app.communication.scheduler_server import serve_grpc
 from backend.app.api.workloads import router as workloads_router
 from backend.app.api.scheduler import router as scheduler_router
+from backend.app.api.events import router as events_router
+from backend.app.api.websocket import router as ws_router, setup_event_broadcaster
+import asyncio
 
 setup_logging()
 
 app = FastAPI(title="GPUFlow", description="Distributed GPU-Aware Workload Scheduling")
 app.include_router(workloads_router)
 app.include_router(scheduler_router)
+app.include_router(events_router)
+app.include_router(ws_router)
 
 
 def timeout_checker():
@@ -25,6 +30,9 @@ def timeout_checker():
 
 @app.on_event("startup")
 def startup_event():
+    loop = asyncio.get_event_loop()
+    setup_event_broadcaster(loop)
+
     grpc_thread = threading.Thread(target=serve_grpc, daemon=True)
     grpc_thread.start()
 
@@ -57,6 +65,7 @@ def get_failure_events():
     return {"events": events, "count": len(events)}
 
 
+@app.get("/cluster")
 @app.get("/resources/cluster")
 def get_cluster_resources():
     return resource_manager.get_cluster_resources()

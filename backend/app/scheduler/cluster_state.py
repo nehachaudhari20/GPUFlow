@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 from backend.app.models.worker import NodeFailureEvent, WorkerNode
 from backend.app.config import settings
 from backend.app.scheduler.resource_manager import resource_manager
+from backend.app.events.event_manager import event_manager, EventType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,20 @@ class ClusterState:
             self.nodes[node.node_id] = node
             logger.info(f"Registered node {node.node_id} ({node.hostname})")
         resource_manager.register_node(node)
+        event_manager.log_event(
+            event_type=EventType.NODE_REGISTERED,
+            source="WORKER",
+            destination="SCHEDULER",
+            node_id=node.node_id,
+            message=f"Node {node.node_id} ({node.hostname}) registered",
+            metadata={
+                "cpu_total": node.cpu_total,
+                "ram_total": node.ram_total,
+                "gpu_total": node.gpu_total,
+                "gpu_memory_total": node.gpu_memory_total,
+                "grpc_port": node.grpc_port,
+            },
+        )
 
     def update_heartbeat(
         self,
@@ -31,6 +46,7 @@ class ClusterState:
         ram_avail: float,
         gpu_avail: float,
         gpu_mem_avail: float,
+        grpc_port: int = 0,
     ):
         with self.lock:
             if node_id not in self.nodes:
@@ -39,11 +55,20 @@ class ClusterState:
             node = self.nodes[node_id]
             node.status = status
             node.last_heartbeat = timestamp
+            if grpc_port > 0:
+                node.grpc_port = grpc_port
 
         resource_manager.update_from_heartbeat(
             node_id, status, cpu_avail, ram_avail, gpu_avail, gpu_mem_avail
         )
         self.sync_node_resources(node_id)
+        event_manager.log_event(
+            event_type=EventType.HEARTBEAT_RECEIVED,
+            source="WORKER",
+            destination="SCHEDULER",
+            node_id=node_id,
+            message=f"Heartbeat received from {node_id}",
+        )
 
     def check_timeouts(self):
         offline_ids: List[str] = []
@@ -63,6 +88,13 @@ class ClusterState:
                         offline_ids.append(node_id)
                         logger.warning(
                             f"Node {node_id} missed heartbeat and marked OFFLINE"
+                        )
+                        event_manager.log_event(
+                            event_type=EventType.NODE_OFFLINE,
+                            source="SCHEDULER",
+                            node_id=node_id,
+                            message=f"Node {node_id} missed heartbeat and marked OFFLINE",
+                            metadata={"last_heartbeat": node.last_heartbeat}
                         )
 
         for node_id in offline_ids:

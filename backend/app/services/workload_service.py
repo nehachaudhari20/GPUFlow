@@ -12,6 +12,7 @@ from backend.app.repositories.workload_repository import (
     InMemoryWorkloadRepository,
     WorkloadRepository,
 )
+from backend.app.events.event_manager import event_manager, EventType
 from backend.app.config import settings
 import logging
 
@@ -41,6 +42,20 @@ class WorkloadQueue:
         with self._lock:
             self._repository.insert(workload)
         logger.info(f"Enqueued workload {workload.job_id} with priority {workload.priority.name}")
+        event_manager.log_event(
+            event_type=EventType.JOB_SUBMITTED,
+            source="USER",
+            destination="SCHEDULER",
+            job_id=workload.job_id,
+            message=f"Job {workload.name} submitted",
+            metadata={"priority": workload.priority.name, "type": workload.type.name},
+        )
+        event_manager.log_event(
+            event_type=EventType.JOB_QUEUED,
+            source="SCHEDULER",
+            job_id=workload.job_id,
+            message=f"Job {workload.job_id} placed in queue",
+        )
         return workload
 
     def get_ordered_queue(self) -> List[Workload]:
@@ -88,7 +103,25 @@ class WorkloadService:
             if assigned_node is not None:
                 workload.assigned_node = assigned_node
             workload.touch()
-            return self._repository.update(workload)
+            updated = self._repository.update(workload)
+
+            # Emit event for status updates
+            event_map = {
+                WorkloadStatus.SCHEDULED: EventType.TASK_ASSIGNED,
+                WorkloadStatus.RUNNING: EventType.TASK_STARTED,
+                WorkloadStatus.COMPLETED: EventType.TASK_COMPLETED,
+                WorkloadStatus.FAILED: EventType.TASK_FAILED,
+            }
+            if status in event_map:
+                event_manager.log_event(
+                    event_type=event_map[status],
+                    source="SCHEDULER",
+                    job_id=job_id,
+                    node_id=assigned_node or workload.assigned_node,
+                    message=f"Job {job_id} state changed to {status.value}",
+                )
+
+            return updated
 
     @staticmethod
     def _is_valid_transition(current: WorkloadStatus, new: WorkloadStatus) -> bool:
