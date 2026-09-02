@@ -1,17 +1,65 @@
-version: '3.8'
 services:
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/gpuflow
+      - GRPC_PORT=50051
     ports:
       - "8000:8000"
       - "50051:50051"
+    depends_on:
+      - mongodb
+    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "80:80"
+    depends_on:
+      - backend
+
   mongodb:
     image: mongo:latest
     ports:
       - "27017:27017"
+
+  worker-1:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - SIMULATE_GPUS=True
+      - SIMULATED_GPU_COUNT=4.0
+      - SIMULATED_GPU_MEMORY_GB=16.0
+      - SCHEDULER_ADDRESS=backend:50051
+    command: ["python", "backend/app/worker/node.py"]
+    depends_on:
+      - backend
+
+  worker-2:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - SIMULATE_GPUS=True
+      - SIMULATED_GPU_COUNT=2.0
+      - SIMULATED_GPU_MEMORY_GB=8.0
+      - SCHEDULER_ADDRESS=backend:50051
+    command: ["python", "backend/app/worker/node.py"]
+    depends_on:
+      - backend
+
+  worker-3:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - SIMULATE_GPUS=True
+      - SIMULATED_GPU_COUNT=1.0
+      - SIMULATED_GPU_MEMORY_GB=4.0
+      - SCHEDULER_ADDRESS=backend:50051
+    command: ["python", "backend/app/worker/node.py"]
+    depends_on:
+      - backend

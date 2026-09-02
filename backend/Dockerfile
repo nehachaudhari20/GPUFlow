@@ -1,8 +1,12 @@
 FROM python:3.11-slim
 WORKDIR /app
+ENV PYTHONPATH=/app
+
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
 COPY protobufs/ protobufs/
 RUN python -m grpc_tools.protoc -I protobufs --python_out=protobufs --grpc_python_out=protobufs protobufs/gpuflow.proto
+
 COPY backend/ backend/
 CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
