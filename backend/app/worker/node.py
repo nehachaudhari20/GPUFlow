@@ -15,9 +15,14 @@ import gpuflow_pb2
 import gpuflow_pb2_grpc
 from backend.app.config import settings
 from backend.app.core.logging import setup_logging
+from backend.app.worker.worker_server import start_worker_server
 
 logger = logging.getLogger(__name__)
 
+def find_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        return s.getsockname()[1]
 
 class WorkerDaemon:
     def __init__(self):
@@ -26,6 +31,8 @@ class WorkerDaemon:
         self.channel = None
         self.stub = None
         self.running = False
+        self.grpc_port = find_free_port()
+        self.server = None
 
         self.cpu_total = float(psutil.cpu_count(logical=True))
         self.ram_total = psutil.virtual_memory().total / (1024**3)
@@ -39,6 +46,10 @@ class WorkerDaemon:
 
     def start(self, scheduler_address: str | None = None):
         address = scheduler_address or settings.scheduler_address
+        self.server = start_worker_server(
+            self.node_id, self.grpc_port, scheduler_address=address, daemon=self
+        )
+
         self.channel = grpc.insecure_channel(address)
         self.stub = gpuflow_pb2_grpc.SchedulerStub(self.channel)
 
@@ -50,10 +61,11 @@ class WorkerDaemon:
                 ram_total=self.ram_total,
                 gpu_total=self.gpu_total,
                 gpu_memory_total=self.gpu_memory_total,
+                grpc_port=self.grpc_port,
             )
             res = self.stub.RegisterNode(req)
             if res.success:
-                logger.info(f"Worker {self.node_id} successfully registered.")
+                logger.info(f"Worker {self.node_id} successfully registered with scheduler.")
                 self.running = True
                 threading.Thread(target=self._heartbeat_loop, daemon=True).start()
             else:
@@ -86,6 +98,7 @@ class WorkerDaemon:
                     ram_available=ram_avail,
                     gpu_available=gpu_avail,
                     gpu_memory_available=gpu_mem_avail,
+                    grpc_port=self.grpc_port,
                 )
                 self.stub.SendHeartbeat(req)
             except Exception as e:
@@ -93,10 +106,31 @@ class WorkerDaemon:
 
             time.sleep(settings.heartbeat_interval)
 
+    def send_peer_message(self, target_host: str, target_port: int, msg_type: str, payload: str) -> str:
+        """P2P direct worker-to-worker communication (Unit 2)."""
+        target = f"{target_host}:{target_port}"
+        try:
+            with grpc.insecure_channel(target) as ch:
+                stub = gpuflow_pb2_grpc.WorkerStub(ch)
+                req = gpuflow_pb2.PeerMessageRequest(
+                    sender_node_id=self.node_id,
+                    target_node_id=target,
+                    message_type=msg_type,
+                    payload=payload,
+                    timestamp=int(time.time() * 1000)
+                )
+                resp = stub.SendPeerMessage(req, timeout=3.0)
+                return resp.reply_payload
+        except Exception as e:
+            logger.error(f"Failed to send peer message to {target}: {e}")
+            return ""
+
     def stop(self):
         self.running = False
         if self.channel:
             self.channel.close()
+        if self.server:
+            self.server.stop(0)
 
 
 def main():
@@ -104,7 +138,7 @@ def main():
     daemon = WorkerDaemon()
     daemon.start()
     logger.info(
-        f"Worker node {daemon.node_id} running. Press Ctrl+C to stop."
+        f"Worker node {daemon.node_id} running on port {daemon.grpc_port}. Press Ctrl+C to stop."
     )
     try:
         while daemon.running:

@@ -13,7 +13,9 @@ import gpuflow_pb2_grpc
 
 from backend.app.scheduler.cluster_state import cluster_state
 from backend.app.models.worker import WorkerNode
-from backend.app.models.workload import WorkloadCreate, WorkloadType, Priority
+from backend.app.models.workload import WorkloadCreate, WorkloadType, Priority, WorkloadStatus
+from backend.app.models.resources import ResourceRequirements
+from backend.app.scheduler.resource_manager import resource_manager
 from backend.app.services.workload_service import workload_service
 from backend.app.scheduler.scheduler import scheduler
 from backend.app.config import settings
@@ -25,6 +27,7 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
         node = WorkerNode(
             node_id=request.node_id,
             hostname=request.hostname,
+            grpc_port=request.grpc_port,
             cpu_total=request.cpu_total,
             cpu_available=request.cpu_total,
             ram_total=request.ram_total,
@@ -47,7 +50,8 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
             cpu_avail=request.cpu_available,
             ram_avail=request.ram_available,
             gpu_avail=request.gpu_available,
-            gpu_mem_avail=request.gpu_memory_available
+            gpu_mem_avail=request.gpu_memory_available,
+            grpc_port=request.grpc_port
         )
         return gpuflow_pb2.HeartbeatResponse(acknowledged=True)
 
@@ -77,6 +81,30 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
             )
         except ValueError as exc:
             return gpuflow_pb2.TaskResponse(accepted=False, message=str(exc))
+
+    def ReportTaskStatus(self, request, context):
+        try:
+            status_enum = WorkloadStatus(request.status)
+            workload = workload_service.get_workload(request.task_id)
+            if workload:
+                workload_service.update_status(
+                    request.task_id, status_enum, assigned_node=request.node_id
+                )
+                if status_enum in (WorkloadStatus.COMPLETED, WorkloadStatus.FAILED):
+                    reqs = ResourceRequirements(
+                        cpu=workload.cpu_required,
+                        ram=workload.ram_required,
+                        gpu=workload.gpu_required,
+                        gpu_memory=workload.gpu_memory_required,
+                    )
+                    resource_manager.release_resources(
+                        request.node_id, reqs, request.task_id
+                    )
+                    cluster_state.sync_node_resources(request.node_id)
+            return gpuflow_pb2.TaskStatusReportResponse(acknowledged=True)
+        except Exception as e:
+            logger.error(f"Error handling ReportTaskStatus for {request.task_id}: {e}")
+            return gpuflow_pb2.TaskStatusReportResponse(acknowledged=False)
 
 def serve_grpc():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

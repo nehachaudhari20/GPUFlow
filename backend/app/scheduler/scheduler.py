@@ -15,6 +15,8 @@ from backend.app.scheduler.scheduling_decision import (
 )
 from backend.app.scheduler.scheduling_policy import SchedulingPolicy
 from backend.app.services.workload_service import WorkloadService
+from backend.app.communication.worker_client import WorkerClient
+from backend.app.events.event_manager import event_manager, EventType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -114,6 +116,22 @@ class Scheduler:
             f"Job {workload.job_id} scheduled on {best.node_id} "
             f"(score={best.scores.total})"
         )
+
+        event_manager.log_event(
+            event_type=EventType.NODE_SELECTED,
+            source="SCHEDULER",
+            job_id=workload.job_id,
+            node_id=best.node_id,
+            message=f"Node {best.node_id} selected with score {best.scores.total}",
+        )
+        event_manager.log_event(
+            event_type=EventType.RESOURCE_ALLOCATED,
+            source="SCHEDULER",
+            job_id=workload.job_id,
+            node_id=best.node_id,
+            message=f"Resources allocated on {best.node_id}",
+        )
+
         return SchedulingDecision(
             job_id=workload.job_id,
             workload_name=workload.name,
@@ -147,11 +165,36 @@ class Scheduler:
         decision = self.schedule_workload(workload)
 
         if decision.allocation_success and decision.selected_node:
-            workload_service.update_status(
-                workload.job_id,
-                WorkloadStatus.SCHEDULED,
-                assigned_node=decision.selected_node,
-            )
+            node = self._cluster_state.get_node(decision.selected_node)
+            assigned_ok = False
+            if node and node.grpc_port > 0:
+                client = WorkerClient(node.hostname, node.grpc_port)
+                assigned_ok = client.assign_task(workload)
+            else:
+                # If node has no valid gRPC port (e.g. mock/test environment without server), assume OK for backward compatibility
+                assigned_ok = True
+
+            if assigned_ok:
+                workload_service.update_status(
+                    workload.job_id,
+                    WorkloadStatus.SCHEDULED,
+                    assigned_node=decision.selected_node,
+                )
+            else:
+                # Rollback allocation if gRPC fails
+                requirements = ResourceRequirements(
+                    cpu=workload.cpu_required,
+                    ram=workload.ram_required,
+                    gpu=workload.gpu_required,
+                    gpu_memory=workload.gpu_memory_required,
+                )
+                self._resource_manager.release_resources(
+                    decision.selected_node, requirements, workload.job_id
+                )
+                self._cluster_state.sync_node_resources(decision.selected_node)
+                decision.allocation_success = False
+                decision.kept_queued = True
+                decision.reason = f"gRPC AssignTask failed on node {decision.selected_node}"
         return decision
 
     def schedule_all_queued(

@@ -6,6 +6,7 @@ import time
 class WorkerNode(BaseModel):
     node_id: str
     hostname: str
+    grpc_port: int = 0
 
     cpu_total: float
     cpu_available: float

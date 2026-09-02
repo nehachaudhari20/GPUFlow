@@ -5,12 +5,15 @@ package gpuflow;
 service Scheduler {
     // Node Registration
     rpc RegisterNode (RegisterNodeRequest) returns (RegisterNodeResponse) {}
-    
+
     // Heartbeat
     rpc SendHeartbeat (HeartbeatRequest) returns (HeartbeatResponse) {}
 
     // Task submission
     rpc SubmitTask (TaskRequest) returns (TaskResponse) {}
+
+    // Worker reports task status changes (RUNNING, COMPLETED, FAILED)
+    rpc ReportTaskStatus (TaskStatusReportRequest) returns (TaskStatusReportResponse) {}
 }
 
 message RegisterNodeRequest {
@@ -20,6 +23,7 @@ message RegisterNodeRequest {
     float ram_total = 4;
     float gpu_total = 5;
     float gpu_memory_total = 6;
+    int32 grpc_port = 7;
 }
 
 message RegisterNodeResponse {
@@ -35,6 +39,7 @@ message HeartbeatRequest {
     float ram_available = 5;
     float gpu_available = 6;
     float gpu_memory_available = 7;
+    int32 grpc_port = 8;
 }
 
 message HeartbeatResponse {
@@ -46,9 +51,94 @@ message TaskRequest {
     float cpu_req = 2;
     float gpu_req = 3;
     float ram_req = 4;
+    float gpu_memory_req = 5;
 }
 
 message TaskResponse {
     bool accepted = 1;
     string message = 2;
+}
+
+message TaskStatusReportRequest {
+    string task_id = 1;
+    string node_id = 2;
+    string status = 3;
+    string message = 4;
+    int64 timestamp = 5;
+}
+
+message TaskStatusReportResponse {
+    bool acknowledged = 1;
+}
+
+service Worker {
+    rpc AssignTask (AssignTaskRequest) returns (AssignTaskResponse) {}
+    rpc GetTaskStatus (TaskStatusRequest) returns (TaskStatusResponse) {}
+    rpc GetResourceStatus (ResourceStatusRequest) returns (ResourceStatusResponse) {}
+    rpc ReleaseResources (ReleaseResourceRequest) returns (ReleaseResourceResponse) {}
+    // P2P worker communication (Unit 2 Communication syllabus)
+    rpc SendPeerMessage (PeerMessageRequest) returns (PeerMessageResponse) {}
+}
+
+message AssignTaskRequest {
+    string task_id = 1;
+    string workload_type = 2;
+    float cpu_req = 3;
+    float gpu_req = 4;
+    float gpu_memory_req = 5;
+    float ram_req = 6;
+    float estimated_duration = 7;
+}
+
+message AssignTaskResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message TaskStatusRequest {
+    string task_id = 1;
+}
+
+message TaskStatusResponse {
+    string status = 1;
+    string message = 2;
+    float progress = 3;
+}
+
+message ResourceStatusRequest {
+}
+
+message ResourceStatusResponse {
+    string node_id = 1;
+    string status = 2;
+    float cpu_total = 3;
+    float cpu_available = 4;
+    float ram_total = 5;
+    float ram_available = 6;
+    float gpu_total = 7;
+    float gpu_available = 8;
+    float gpu_memory_total = 9;
+    float gpu_memory_available = 10;
+}
+
+message ReleaseResourceRequest {
+    string task_id = 1;
+}
+
+message ReleaseResourceResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message PeerMessageRequest {
+    string sender_node_id = 1;
+    string target_node_id = 2;
+    string message_type = 3;
+    string payload = 4;
+    int64 timestamp = 5;
+}
+
+message PeerMessageResponse {
+    bool success = 1;
+    string reply_payload = 2;
 }
