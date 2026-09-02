@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { LayoutDashboard, ListTodo, Server, PlusCircle, MessageSquare, Briefcase } from 'lucide-react';
+import { LayoutDashboard, ListTodo, Server, PlusCircle, MessageSquare, Briefcase, RotateCcw, Loader2 } from 'lucide-react';
 import { cn } from './utils';
+import { apiPost } from './api';
 
 import Dashboard from './components/Dashboard';
 import Workloads from './components/Workloads';
@@ -14,14 +15,30 @@ type Tab = 'dashboard' | 'workloads' | 'cluster' | 'scheduler' | 'events' | 'sub
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const { nodes, workloads, resources, events, refresh } = useClusterData();
+  const [resetting, setResetting] = useState(false);
+  const { nodes, workloads, resources, events, refresh, queuedCount, runningCount } = useClusterData();
+
+  const handleReset = async () => {
+    if (!window.confirm('Clear all workloads, events, and queue data? Workers will re-register.')) return;
+    setResetting(true);
+    try {
+      await apiPost('/admin/reset');
+      setActiveTab('dashboard');
+      await refresh();
+    } catch (e) {
+      console.error(e);
+      alert('Reset failed. Is the backend running?');
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'cluster', label: 'Cluster Nodes', icon: Server },
     { id: 'submit', label: 'Submit Workload', icon: PlusCircle },
     { id: 'workloads', label: 'Workloads Config', icon: ListTodo },
-    { id: 'scheduler', label: 'Scheduler Engine', icon: Briefcase },
+    { id: 'scheduler', label: 'Scheduler Insights', icon: Briefcase },
     { id: 'events', label: 'Communication Log', icon: MessageSquare },
   ] as const;
 
@@ -50,22 +67,44 @@ export default function App() {
           ))}
         </div>
 
-        {/* Connection Status indicator */}
-        <div className="p-4 border-t border-slate-800 text-xs flex justify-between items-center text-slate-500">
-          <span>Backend Link</span>
-          <span className="flex items-center gap-1.5 text-emerald-500">
-             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-             Live
-          </span>
+        <div className="p-4 border-t border-slate-800 text-xs space-y-2 text-slate-500">
+          <div className="flex justify-between items-center">
+            <span>Backend Link</span>
+            <span className="flex items-center gap-1.5 text-emerald-500">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>Queued</span>
+            <span className="text-yellow-400 font-mono">{queuedCount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Running</span>
+            <span className="text-emerald-400 font-mono">{runningCount}</span>
+          </div>
+          <button
+            onClick={handleReset}
+            disabled={resetting}
+            className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-red-900/50 bg-red-950/30 text-red-400 hover:bg-red-950/50 disabled:opacity-50 text-xs font-medium transition"
+          >
+            {resetting ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+            {resetting ? 'Resetting...' : 'Reset Demo Data'}
+          </button>
         </div>
       </nav>
 
       <main className="flex-1 overflow-y-auto p-8 relative scroll-smooth">
         {activeTab === 'dashboard' && <Dashboard nodes={nodes} workloads={workloads} resources={resources} />}
         {activeTab === 'cluster' && <ClusterNodes nodes={nodes} />}
-        {activeTab === 'submit' && <SubmitWorkload onSubmitSuccess={() => { refresh(); setActiveTab('workloads'); }} />}
-        {activeTab === 'workloads' && <Workloads workloads={workloads} refresh={refresh} />}
-        {activeTab === 'scheduler' && <SchedulerView workloads={workloads} refresh={refresh} />}
+        {activeTab === 'submit' && (
+          <SubmitWorkload
+            refresh={refresh}
+            onSubmitSuccess={() => { refresh(); setActiveTab('workloads'); }}
+          />
+        )}
+        {activeTab === 'workloads' && <Workloads workloads={workloads} nodes={nodes} refresh={refresh} />}
+        {activeTab === 'scheduler' && <SchedulerView workloads={workloads} nodes={nodes} refresh={refresh} />}
         {activeTab === 'events' && <EventTimeline events={events} />}
       </main>
     </div>

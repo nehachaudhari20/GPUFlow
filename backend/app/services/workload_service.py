@@ -1,4 +1,5 @@
 import threading
+import time
 from typing import Callable, List, Optional
 
 from backend.app.models.workload import (
@@ -83,6 +84,10 @@ class WorkloadService:
     def list_workloads(self, status: WorkloadStatus | None = None) -> List[Workload]:
         return self._repository.list_all(status=status)
 
+    def clear_all_workloads(self) -> int:
+        with self._lock:
+            return self._repository.delete_all()
+
     def update_status(
         self,
         job_id: str,
@@ -102,6 +107,8 @@ class WorkloadService:
             workload.status = status
             if assigned_node is not None:
                 workload.assigned_node = assigned_node
+            if status == WorkloadStatus.RUNNING and workload.started_at is None:
+                workload.started_at = time.time()
             workload.touch()
             updated = self._repository.update(workload)
 

@@ -27,7 +27,7 @@ def find_free_port():
 class WorkerDaemon:
     def __init__(self):
         self.node_id = str(uuid.uuid4())
-        self.hostname = socket.gethostname()
+        self.hostname = os.environ.get("WORKER_HOSTNAME") or socket.gethostname()
         self.channel = None
         self.stub = None
         self.running = False
@@ -46,6 +46,7 @@ class WorkerDaemon:
 
     def start(self, scheduler_address: str | None = None):
         address = scheduler_address or settings.scheduler_address
+        self.scheduler_address = address
         self.server = start_worker_server(
             self.node_id, self.grpc_port, scheduler_address=address, daemon=self
         )
@@ -53,6 +54,25 @@ class WorkerDaemon:
         self.channel = grpc.insecure_channel(address)
         self.stub = gpuflow_pb2_grpc.SchedulerStub(self.channel)
 
+        while not self._register_with_scheduler():
+            logger.warning(
+                f"Scheduler not ready at {address}, retrying registration in 3s..."
+            )
+            self._ensure_scheduler_channel()
+            time.sleep(3)
+
+        threading.Thread(target=self._heartbeat_loop, daemon=True).start()
+
+    def _ensure_scheduler_channel(self):
+        if self.channel is not None:
+            try:
+                self.channel.close()
+            except Exception:
+                pass
+        self.channel = grpc.insecure_channel(self.scheduler_address)
+        self.stub = gpuflow_pb2_grpc.SchedulerStub(self.channel)
+
+    def _register_with_scheduler(self) -> bool:
         try:
             req = gpuflow_pb2.RegisterNodeRequest(
                 node_id=self.node_id,
@@ -67,11 +87,11 @@ class WorkerDaemon:
             if res.success:
                 logger.info(f"Worker {self.node_id} successfully registered with scheduler.")
                 self.running = True
-                threading.Thread(target=self._heartbeat_loop, daemon=True).start()
-            else:
-                logger.error("Registration failed.")
+                return True
+            logger.error("Registration failed.")
         except Exception as e:
             logger.error(f"Could not connect to scheduler: {e}")
+        return False
 
     def _heartbeat_loop(self):
         while self.running:
@@ -103,6 +123,9 @@ class WorkerDaemon:
                 self.stub.SendHeartbeat(req)
             except Exception as e:
                 logger.error(f"Failed to send heartbeat: {e}")
+                self._ensure_scheduler_channel()
+                if self._register_with_scheduler():
+                    logger.info(f"Worker {self.node_id} re-registered with scheduler.")
 
             time.sleep(settings.heartbeat_interval)
 

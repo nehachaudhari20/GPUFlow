@@ -135,5 +135,10 @@ class ClusterState:
         with self.lock:
             return list(self.failure_events)
 
+    def reset(self):
+        with self.lock:
+            self.nodes.clear()
+            self.failure_events.clear()
+
 
 cluster_state = ClusterState()

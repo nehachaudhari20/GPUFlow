@@ -51,6 +51,18 @@ class Scheduler:
         candidate_nodes: List[CandidateNode] = []
 
         for node in cluster.nodes:
+            if node.running_workloads:
+                rejected_nodes.append(
+                    RejectedNode(
+                        node_id=node.node_id,
+                        hostname=node.hostname,
+                        reasons=[
+                            f"Node busy running {len(node.running_workloads)} workload(s)"
+                        ],
+                    )
+                )
+                continue
+
             eligible, reasons = self._node_filter.evaluate(node, requirements)
             if eligible:
                 scores = self._node_scorer.score(node, cluster.nodes)
@@ -180,8 +192,12 @@ class Scheduler:
                     WorkloadStatus.SCHEDULED,
                     assigned_node=decision.selected_node,
                 )
+                workload_service.update_status(
+                    workload.job_id,
+                    WorkloadStatus.RUNNING,
+                    assigned_node=decision.selected_node,
+                )
             else:
-                # Rollback allocation if gRPC fails
                 requirements = ResourceRequirements(
                     cpu=workload.cpu_required,
                     ram=workload.ram_required,
@@ -194,7 +210,10 @@ class Scheduler:
                 self._cluster_state.sync_node_resources(decision.selected_node)
                 decision.allocation_success = False
                 decision.kept_queued = True
-                decision.reason = f"gRPC AssignTask failed on node {decision.selected_node}"
+                decision.reason = (
+                    f"Worker on node {decision.selected_node} rejected task "
+                    "(node busy or unavailable); job kept in queue"
+                )
         return decision
 
     def schedule_all_queued(

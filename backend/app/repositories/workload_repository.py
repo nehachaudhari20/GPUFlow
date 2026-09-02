@@ -21,6 +21,10 @@ class WorkloadRepository(ABC):
     def update(self, workload: Workload) -> Workload:
         pass
 
+    @abstractmethod
+    def delete_all(self) -> int:
+        pass
+
 
 class InMemoryWorkloadRepository(WorkloadRepository):
     def __init__(self):
@@ -48,3 +52,8 @@ class InMemoryWorkloadRepository(WorkloadRepository):
 
     def clear(self):
         self._workloads.clear()
+
+    def delete_all(self) -> int:
+        count = len(self._workloads)
+        self._workloads.clear()
+        return count

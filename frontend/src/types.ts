@@ -1,6 +1,6 @@
 export type WorkloadType = 'TRAINING' | 'INFERENCE' | 'BATCH' | 'PREPROCESSING';
 export type Priority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-export type WorkloadStatus = 'SUBMITTED' | 'QUEUED' | 'SCHEDULED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type WorkloadStatus = 'QUEUED' | 'SCHEDULED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 export interface Workload {
   job_id: string;
@@ -12,11 +12,11 @@ export interface Workload {
   ram_required: number;
   priority: Priority;
   status: WorkloadStatus;
-  submission_time: string; // ISODate
+  estimated_duration: number;
   assigned_node?: string | null;
-  start_time?: string | null;
-  completion_time?: string | null;
-  estimated_duration?: number | null;
+  started_at?: number | null;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface WorkerNode {
@@ -33,6 +33,7 @@ export interface WorkerNode {
   gpu_memory_available: number;
   status: 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
   last_heartbeat: number;
+  current_workloads?: string[];
 }
 
 export interface ClusterResourceResponse {

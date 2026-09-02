@@ -20,7 +20,12 @@ class WorkerServicer(gpuflow_pb2_grpc.WorkerServicer):
         self.scheduler_address = scheduler_address or settings.scheduler_address
         self.daemon = daemon
         self.tasks = {}
+        self._active_task_id: str | None = None
         self._lock = threading.Lock()
+
+    def is_busy(self) -> bool:
+        with self._lock:
+            return self._active_task_id is not None
 
     def _report_status_to_scheduler(self, task_id: str, status: str, message: str = ""):
         try:
@@ -38,35 +43,50 @@ class WorkerServicer(gpuflow_pb2_grpc.WorkerServicer):
             logger.error(f"Worker {self.node_id} failed to report task status {status} for {task_id}: {e}")
 
     def _execute_workload(self, task_id: str, duration: float):
-        logger.info(f"Worker {self.node_id} starting execution of task {task_id} (duration={duration}s)")
+        logger.info(
+            f"Worker {self.node_id} starting execution of task {task_id} "
+            f"(duration={duration}s)"
+        )
         with self._lock:
             self.tasks[task_id] = "RUNNING"
         self._report_status_to_scheduler(task_id, "RUNNING", "Task execution started")
 
-        # Simulate workload execution time (clamped to 3s for fast local testing/demo if requested)
-        run_time = min(duration, 3.0) if duration > 0 else 0.5
+        run_time = max(duration, 0.5) if duration > 0 else 0.5
         time.sleep(run_time)
 
         with self._lock:
             self.tasks[task_id] = "COMPLETED"
+            if self._active_task_id == task_id:
+                self._active_task_id = None
         self._report_status_to_scheduler(task_id, "COMPLETED", "Task execution completed successfully")
         logger.info(f"Worker {self.node_id} completed execution of task {task_id}")
 
     def AssignTask(self, request, context):
         task_id = request.task_id
         logger.info(f"Worker {self.node_id} received AssignTask request for {task_id}")
-        
+
         with self._lock:
+            if self._active_task_id is not None:
+                return gpuflow_pb2.AssignTaskResponse(
+                    success=False,
+                    message=f"Worker busy executing task {self._active_task_id}",
+                )
             if task_id in self.tasks and self.tasks[task_id] == "RUNNING":
-                return gpuflow_pb2.AssignTaskResponse(success=False, message="Task already running")
+                return gpuflow_pb2.AssignTaskResponse(
+                    success=False, message="Task already running"
+                )
+            self._active_task_id = task_id
             self.tasks[task_id] = "SCHEDULED"
 
-        # Start simulated execution in background thread
         duration = request.estimated_duration if request.estimated_duration > 0 else 2.0
-        exec_thread = threading.Thread(target=self._execute_workload, args=(task_id, duration), daemon=True)
+        exec_thread = threading.Thread(
+            target=self._execute_workload, args=(task_id, duration), daemon=True
+        )
         exec_thread.start()
 
-        return gpuflow_pb2.AssignTaskResponse(success=True, message=f"Task {task_id} accepted for execution")
+        return gpuflow_pb2.AssignTaskResponse(
+            success=True, message=f"Task {task_id} accepted for execution"
+        )
 
     def GetTaskStatus(self, request, context):
         task_id = request.task_id

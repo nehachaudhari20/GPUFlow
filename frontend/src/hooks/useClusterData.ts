@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { WorkerNode, Workload, SystemEvent, ClusterResourceResponse } from '../types';
+
+const POLL_INTERVAL_MS = 1000;
 
 export function useClusterData() {
   const [nodes, setNodes] = useState<WorkerNode[]>([]);
   const [workloads, setWorkloads] = useState<Workload[]>([]);
   const [resources, setResources] = useState<ClusterResourceResponse | null>(null);
   const [events, setEvents] = useState<SystemEvent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [nodesRes, workloadsRes, resourcesRes, eventsRes] = await Promise.all([
         fetch('/nodes').then(r => r.json()),
@@ -27,22 +30,22 @@ export function useClusterData() {
       });
       setEvents(Array.isArray(eventsRes) ? eventsRes : eventsRes.events || []);
     } catch (e) {
-      console.error("Error fetching cluster data:", e);
+      console.error('Error fetching cluster data:', e);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
+    const pollId = window.setInterval(fetchData, POLL_INTERVAL_MS);
 
-    // Use absolute URL since proxy setup in Vite only works for fetch, not always for native WS in dev mode perfectly
-    // if using just relative `/ws`, it tries window.location.host which is the dev server,
-    // which delegates to target in proxy config.
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
     const ws = new WebSocket(wsUrl);
 
     ws.onerror = () => {
-      // WebSocket is optional; REST polling still works
+      // WebSocket optional; polling keeps UI updated
     };
 
     ws.onmessage = (event) => {
@@ -59,9 +62,22 @@ export function useClusterData() {
     };
 
     return () => {
+      window.clearInterval(pollId);
       ws.close();
     };
-  }, []);
+  }, [fetchData]);
 
-  return { nodes, workloads, resources, events, refresh: fetchData };
+  const queuedCount = workloads.filter(w => w.status === 'QUEUED').length;
+  const runningCount = workloads.filter(w => w.status === 'RUNNING').length;
+
+  return {
+    nodes,
+    workloads,
+    resources,
+    events,
+    loading,
+    queuedCount,
+    runningCount,
+    refresh: fetchData,
+  };
 }

@@ -70,6 +70,7 @@ class Workload(BaseModel):
     estimated_duration: float = Field(gt=0)
     status: WorkloadStatus = WorkloadStatus.QUEUED
     assigned_node: str | None = None
+    started_at: float | None = None
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 

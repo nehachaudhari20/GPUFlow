@@ -2,12 +2,14 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+import time
 
 from backend.app.models.workload import (
     Workload,
     WorkloadCreate,
     WorkloadStatus,
 )
+from backend.app.scheduler.scheduler import scheduler
 from backend.app.services.workload_service import workload_service
 
 router = APIRouter(prefix="/workloads", tags=["workloads"])
@@ -19,8 +21,27 @@ class WorkloadStatusUpdate(BaseModel):
 
 
 @router.post("", response_model=Workload, status_code=201)
-def create_workload(payload: WorkloadCreate):
-    return workload_service.create_workload(payload)
+def create_workload(
+    payload: WorkloadCreate,
+    auto_schedule: bool = Query(default=True, description="Immediately schedule if a worker is free"),
+):
+    workload = workload_service.create_workload(payload)
+    if auto_schedule:
+        has_running = any(
+            w.status == WorkloadStatus.RUNNING
+            for w in workload_service.list_workloads()
+            if w.job_id != workload.job_id
+        )
+        if not has_running:
+            for attempt in range(10):
+                scheduler.schedule_next(workload_service)
+                updated = workload_service.get_workload(workload.job_id)
+                if updated and updated.status != WorkloadStatus.QUEUED:
+                    return updated
+                if attempt < 9:
+                    time.sleep(1)
+    updated = workload_service.get_workload(workload.job_id)
+    return updated or workload
 
 
 @router.get("", response_model=dict)

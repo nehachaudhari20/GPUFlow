@@ -87,9 +87,10 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
             status_enum = WorkloadStatus(request.status)
             workload = workload_service.get_workload(request.task_id)
             if workload:
-                workload_service.update_status(
-                    request.task_id, status_enum, assigned_node=request.node_id
-                )
+                if workload.status != status_enum:
+                    workload_service.update_status(
+                        request.task_id, status_enum, assigned_node=request.node_id
+                    )
                 if status_enum in (WorkloadStatus.COMPLETED, WorkloadStatus.FAILED):
                     reqs = ResourceRequirements(
                         cpu=workload.cpu_required,
@@ -101,6 +102,8 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
                         request.node_id, reqs, request.task_id
                     )
                     cluster_state.sync_node_resources(request.node_id)
+                    if status_enum == WorkloadStatus.COMPLETED:
+                        scheduler.schedule_next(workload_service)
             return gpuflow_pb2.TaskStatusReportResponse(acknowledged=True)
         except Exception as e:
             logger.error(f"Error handling ReportTaskStatus for {request.task_id}: {e}")

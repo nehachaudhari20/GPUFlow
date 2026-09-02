@@ -29,11 +29,13 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    hostname: worker-1
     environment:
       - SIMULATE_GPUS=True
-      - SIMULATED_GPU_COUNT=4.0
-      - SIMULATED_GPU_MEMORY_GB=16.0
+      - SIMULATED_GPU_COUNT=8.0
+      - SIMULATED_GPU_MEMORY_GB=32.0
       - SCHEDULER_ADDRESS=backend:50051
+      - WORKER_HOSTNAME=worker-1
     command: ["python", "backend/app/worker/node.py"]
     depends_on:
       - backend
@@ -42,11 +44,13 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    hostname: worker-2
     environment:
       - SIMULATE_GPUS=True
       - SIMULATED_GPU_COUNT=2.0
       - SIMULATED_GPU_MEMORY_GB=8.0
       - SCHEDULER_ADDRESS=backend:50051
+      - WORKER_HOSTNAME=worker-2
     command: ["python", "backend/app/worker/node.py"]
     depends_on:
       - backend
@@ -55,11 +59,13 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    hostname: worker-3
     environment:
       - SIMULATE_GPUS=True
       - SIMULATED_GPU_COUNT=1.0
       - SIMULATED_GPU_MEMORY_GB=4.0
       - SCHEDULER_ADDRESS=backend:50051
+      - WORKER_HOSTNAME=worker-3
     command: ["python", "backend/app/worker/node.py"]
     depends_on:
       - backend

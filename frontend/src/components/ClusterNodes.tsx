@@ -41,9 +41,9 @@ function NodeCard({ node }: { node: WorkerNode }) {
           <div>
             <div className="flex items-center gap-2">
               <Server size={18} className={isOnline ? 'text-indigo-400' : 'text-red-400'} />
-              <h3 className="font-bold text-slate-200">{node.node_id}</h3>
+              <h3 className="font-bold text-slate-200">{node.hostname}</h3>
             </div>
-            <p className="text-xs text-slate-500 font-mono mt-0.5">{node.hostname}:{node.grpc_port}</p>
+            <p className="text-xs text-slate-500 font-mono mt-0.5">{node.node_id.substring(0, 8)}... :{node.grpc_port}</p>
           </div>
           <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
             isOnline ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
@@ -104,13 +104,22 @@ function NodeCard({ node }: { node: WorkerNode }) {
         </div>
       </div>
 
-      <div className="border-t border-slate-800/80 pt-3 flex justify-between items-center text-[11px] text-slate-500">
-        <span>Last heartbeat: {secondsSinceHeartbeat > 0 ? `${secondsSinceHeartbeat}s ago` : 'just now'}</span>
-        {isOnline ? (
-          <span className="text-emerald-500 flex items-center gap-1"><CheckCircle2 size={12} /> Ready</span>
-        ) : (
-          <span className="text-red-400 flex items-center gap-1"><AlertTriangle size={12} /> Excluded from scheduling</span>
-        )}
+      <div className="border-t border-slate-800/80 pt-3 space-y-1 text-[11px] text-slate-500">
+        <div className="flex justify-between items-center">
+          <span>Last heartbeat: {secondsSinceHeartbeat > 0 ? `${secondsSinceHeartbeat}s ago` : 'just now'}</span>
+          {isOnline ? (
+            <span className="text-emerald-500 flex items-center gap-1"><CheckCircle2 size={12} /> Ready</span>
+          ) : (
+            <span className="text-red-400 flex items-center gap-1"><AlertTriangle size={12} /> Offline</span>
+          )}
+        </div>
+        {(node.current_workloads?.length ?? 0) > 0 ? (
+          <div className="text-emerald-400 font-mono">
+            Running {node.current_workloads!.length} job(s): {node.current_workloads!.map(id => id.substring(0, 8)).join(', ')}...
+          </div>
+        ) : isOnline ? (
+          <div className="text-slate-600">No active workloads — available for scheduling</div>
+        ) : null}
       </div>
     </div>
   );

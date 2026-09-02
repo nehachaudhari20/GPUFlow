@@ -107,7 +107,7 @@ def test_one_eligible_node(scheduler, cluster, resources, workload_service):
     assert decision.allocation_success is True
     assert decision.selected_node == "NODE-01"
     assert len(decision.candidate_nodes) == 1
-    assert workload_service.get_workload("JOB-102").status == WorkloadStatus.SCHEDULED
+    assert workload_service.get_workload("JOB-102").status == WorkloadStatus.RUNNING
 
 
 def test_multiple_eligible_nodes_picks_highest_score(

@@ -40,6 +40,10 @@ class MongoWorkloadRepository(WorkloadRepository):
             raise KeyError(f"Workload {workload.job_id} not found")
         return workload
 
+    def delete_all(self) -> int:
+        result = self._collection.delete_many({})
+        return result.deleted_count
+
     @staticmethod
     def _to_document(workload: Workload) -> dict:
         data = workload.model_dump()
@@ -62,6 +66,7 @@ class MongoWorkloadRepository(WorkloadRepository):
             estimated_duration=doc["estimated_duration"],
             status=WorkloadStatus(doc["status"]),
             assigned_node=doc.get("assigned_node"),
+            started_at=doc.get("started_at"),
             created_at=doc["created_at"],
             updated_at=doc["updated_at"],
         )

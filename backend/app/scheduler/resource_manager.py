@@ -275,5 +275,9 @@ class ResourceManager:
             and requirements.gpu_memory <= state.gpu_memory_available
         )
 
+    def reset(self):
+        with self._lock:
+            self._nodes.clear()
+
 
 resource_manager = ResourceManager()

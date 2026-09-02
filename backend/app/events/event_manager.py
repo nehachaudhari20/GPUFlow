@@ -100,4 +100,8 @@ class EventManager:
             res = [e for e in res if e.event_type == event_type]
         return res[-limit:]
 
+    def clear_all(self):
+        with self._lock:
+            self._events.clear()
+
 event_manager = EventManager()
