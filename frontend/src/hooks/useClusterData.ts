@@ -17,8 +17,15 @@ export function useClusterData() {
       ]);
       setNodes(nodesRes.nodes || []);
       setWorkloads(workloadsRes.workloads || []);
-      setResources(resourcesRes);
-      setEvents(eventsRes || []);
+      setResources({
+        total_gpus: resourcesRes.gpu_total ?? 0,
+        available_gpus: resourcesRes.gpu_available ?? 0,
+        total_cpus: resourcesRes.cpu_total ?? 0,
+        available_cpus: resourcesRes.cpu_available ?? 0,
+        total_ram: resourcesRes.ram_total ?? 0,
+        available_ram: resourcesRes.ram_available ?? 0,
+      });
+      setEvents(Array.isArray(eventsRes) ? eventsRes : eventsRes.events || []);
     } catch (e) {
       console.error("Error fetching cluster data:", e);
     }
@@ -34,14 +41,20 @@ export function useClusterData() {
     const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
     const ws = new WebSocket(wsUrl);
 
+    ws.onerror = () => {
+      // WebSocket is optional; REST polling still works
+    };
+
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'EVENT') {
-        const sysEvent = data.data as SystemEvent;
-        // Prepend new event
-        setEvents(prev => [sysEvent, ...prev].slice(0, 500));
-        // Refresh full state whenever system state changes
-        fetchData();
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'EVENT') {
+          const sysEvent = data.data as SystemEvent;
+          setEvents(prev => [sysEvent, ...prev].slice(0, 500));
+          fetchData();
+        }
+      } catch {
+        // Ignore malformed websocket payloads
       }
     };
 

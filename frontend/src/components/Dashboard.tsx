@@ -77,8 +77,10 @@ function MetricCard({ title, value, icon }: { title: string; value: number | str
 }
 
 function ResourceUtilizationCard({ title, total, available, unit, color }: { title: string; total: number; available: number; unit: string; color: string; }) {
-  const used = total - available;
-  const utilizedPercent = total > 0 ? (used / total) * 100 : 0;
+  const safeTotal = Number.isFinite(total) ? total : 0;
+  const safeAvailable = Number.isFinite(available) ? available : 0;
+  const used = Math.max(0, safeTotal - safeAvailable);
+  const utilizedPercent = safeTotal > 0 ? (used / safeTotal) * 100 : 0;
 
   const data = [
     { name: 'Used', value: used },
@@ -108,7 +110,7 @@ function ResourceUtilizationCard({ title, total, available, unit, color }: { tit
       </div>
       <div className="text-center mt-2">
         <div className="text-3xl font-bold text-slate-100">{utilizedPercent.toFixed(1)}%</div>
-        <div className="text-sm text-slate-400 mt-1">{used.toFixed(1)} / {total.toFixed(1)} {unit}</div>
+        <div className="text-sm text-slate-400 mt-1">{used.toFixed(1)} / {safeTotal.toFixed(1)} {unit}</div>
       </div>
     </div>
   );
