@@ -172,6 +172,10 @@ class WorkerServicer(gpuflow_pb2_grpc.WorkerServicer):
             f"Worker {self.node_id} received P2P message '{request.message_type}' "
             f"from sender {request.sender_node_id}: {request.payload}"
         )
+        if self.daemon and hasattr(self.daemon, "coordination"):
+            self.daemon.coordination.handle_peer_message(
+                request.message_type, request.payload, request.sender_node_id
+            )
         reply = f"ACK from node {self.node_id} for peer message '{request.message_type}'"
         return gpuflow_pb2.PeerMessageResponse(success=True, reply_payload=reply)
 

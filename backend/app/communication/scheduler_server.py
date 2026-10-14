@@ -24,6 +24,8 @@ from backend.app.synchronization.process_sync import get_coordinator_sync
 from backend.app.synchronization.grpc_metadata import vector_from_proto, apply_vector_to_proto
 from backend.app.synchronization.event_sync import log_event_with_clocks
 from backend.app.synchronization.clock_sync import clock_sync_registry, CristianSyncSample
+from backend.app.coordination.coordinator import coordination_service
+from backend.app.synchronization.event_sync import log_synchronized_event
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +55,27 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
             last_heartbeat=time.time()
         )
         cluster_state.register_node(node, lamport=lamport, vector=vector)
-        return gpuflow_pb2.RegisterNodeResponse(success=True, message="Node registered successfully")
+        election_id = int(request.election_id) if request.election_id else 0
+        coordination_service.register_member(
+            request.node_id, election_id, request.hostname, request.grpc_port
+        )
+        peers = coordination_service.list_members()
+        if election_id > coordination_service.get_leader().get("coordinator_election_id", -1):
+            coordination_service.report_coordinator(request.node_id, election_id)
+
+        resp = gpuflow_pb2.RegisterNodeResponse(
+            success=True,
+            message="Node registered successfully",
+            membership_epoch=coordination_service.membership_epoch(),
+        )
+        for p in peers:
+            resp.peers.add(
+                node_id=p["node_id"],
+                election_id=int(p.get("election_id", 0)),
+                hostname=p["hostname"],
+                grpc_port=int(p["grpc_port"]),
+            )
+        return resp
 
     def SendHeartbeat(self, request, context):
         server_receive_ms = time.time() * 1000.0
@@ -105,6 +127,23 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
                 server_receive_ms=server_receive_ms,
                 server_reply_ms=server_reply_ms,
             )
+
+        if request.beacon_sequence:
+            coordination_service.ingest_beacon(
+                node_id=request.node_id,
+                sequence=int(request.beacon_sequence),
+                coordinator_node_id=request.worker_coordinator_id or None,
+                membership_epoch=int(request.membership_epoch or coordination_service.membership_epoch()),
+                lamport_timestamp=int(request.lamport_time or lamport),
+                vector_clock=remote_vector,
+                cpu_available=request.cpu_available,
+                ram_available=request.ram_available,
+                status=request.status,
+            )
+            if request.worker_coordinator_id and request.worker_election_id:
+                coordination_service.report_coordinator(
+                    request.worker_coordinator_id, int(request.worker_election_id)
+                )
 
         resp_lamport, resp_vector = coord.on_send()
         response = gpuflow_pb2.HeartbeatResponse(

@@ -12,6 +12,7 @@ from backend.app.api.scheduler import router as scheduler_router
 from backend.app.api.events import router as events_router
 from backend.app.api.admin import router as admin_router
 from backend.app.api.fa2_synchronization import router as fa2_router
+from backend.app.api.fa2_coordination import router as fa2_coordination_router
 from backend.app.api.websocket import router as ws_router, setup_event_broadcaster
 import asyncio
 
@@ -23,12 +24,16 @@ app.include_router(scheduler_router)
 app.include_router(events_router)
 app.include_router(admin_router)
 app.include_router(fa2_router)
+app.include_router(fa2_coordination_router)
 app.include_router(ws_router)
 
 
 def timeout_checker():
+    from backend.app.coordination.coordinator import coordination_service
+
     while True:
         cluster_state.check_timeouts()
+        coordination_service.check_beacons()
         time.sleep(1)
 
 

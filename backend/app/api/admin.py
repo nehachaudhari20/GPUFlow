@@ -9,6 +9,8 @@ from backend.app.services.workload_service import workload_service
 from backend.app.synchronization.clock_sync import clock_sync_registry
 from backend.app.synchronization.global_snapshot import global_snapshot_service
 from backend.app.synchronization.process_sync import reset_sync_registry
+from backend.app.coordination.coordinator import coordination_service
+from backend.app.coordination.distributed_lock import distributed_lock_coordinator
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,8 @@ def reset_platform():
     clock_sync_registry.clear()
     global_snapshot_service.clear()
     reset_sync_registry()
+    coordination_service.clear()
+    distributed_lock_coordinator.clear()
 
     logger.info(f"Platform reset: removed {workloads_deleted} workload(s)")
 

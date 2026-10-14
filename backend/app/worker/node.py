@@ -21,6 +21,7 @@ from backend.app.worker.worker_server import start_worker_server
 from backend.app.worker.hardware_probe import probe_host_resources
 from backend.app.synchronization.process_sync import get_worker_sync
 from backend.app.synchronization.grpc_metadata import apply_vector_to_proto
+from backend.app.worker.coordination_worker import WorkerCoordinationRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,9 @@ class WorkerDaemon:
         self.resource_source = resources.source
         self._cristian_prev_request_ms: float | None = None
         self._cristian_prev_response_ms: float | None = None
+        self.coordination = WorkerCoordinationRuntime(
+            self.node_id, self.worker_name, self.hostname
+        )
 
     def start(self, scheduler_address: str | None = None):
         address = scheduler_address or settings.scheduler_address
@@ -103,10 +107,12 @@ class WorkerDaemon:
                 gpu_memory_total=self.gpu_memory_total,
                 grpc_port=self.advertise_port,
                 lamport_time=lamport,
+                election_id=self.coordination.election_id,
             )
             apply_vector_to_proto(req.vector_clock, vector)
             res = self.stub.RegisterNode(req)
             if res.success:
+                self.coordination.on_register(res.peers, res.membership_epoch or 1)
                 label = self.worker_name or self.hostname
                 logger.info(
                     f"Worker {self.node_id} ({label}) registered — "
@@ -141,6 +147,7 @@ class WorkerDaemon:
                 sync = get_worker_sync(self.node_id)
                 client_wall_ms = int(time.time() * 1000)
                 lamport, vector = sync.on_send()
+                coord_id, coord_eid = self.coordination.coordinator_report()
                 req = gpuflow_pb2.HeartbeatRequest(
                     node_id=self.node_id,
                     status="ONLINE",
@@ -152,6 +159,10 @@ class WorkerDaemon:
                     grpc_port=self.advertise_port,
                     lamport_time=lamport,
                     client_wall_time_ms=client_wall_ms,
+                    beacon_sequence=self.coordination.next_beacon_sequence(),
+                    worker_coordinator_id=coord_id,
+                    worker_election_id=coord_eid,
+                    membership_epoch=self.coordination._membership_epoch,
                 )
                 apply_vector_to_proto(req.vector_clock, vector)
                 if (

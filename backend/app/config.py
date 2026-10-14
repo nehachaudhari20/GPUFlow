@@ -35,6 +35,21 @@ class Settings(BaseSettings):
     schedule_health_weight: float = 0.10
     schedule_load_balance_weight: float = 0.10
 
+    fa2_dev_controls_enabled: bool = True
+
+    recovery_max_attempts: int = 3
+    recovery_retry_base_delay_s: float = 2.0
+    recovery_retry_max_delay_s: float = 30.0
+
+    storage_max_upload_bytes: int = 5 * 1024 * 1024
+    storage_replication_factor: int = 2
+
+    autoscale_min_workers: int = 1
+    autoscale_max_workers: int = 10
+    autoscale_cpu_high: float = 0.75
+    autoscale_queue_depth_high: int = 3
+    autoscale_cooldown_s: int = 60
+
     class Config:
         env_file = ".env"
 
