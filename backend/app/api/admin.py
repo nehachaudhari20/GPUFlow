@@ -11,6 +11,8 @@ from backend.app.synchronization.global_snapshot import global_snapshot_service
 from backend.app.synchronization.process_sync import reset_sync_registry
 from backend.app.coordination.coordinator import coordination_service
 from backend.app.coordination.distributed_lock import distributed_lock_coordinator
+from backend.app.recovery.recovery_manager import recovery_manager
+from backend.app.replication.replication_manager import replication_manager
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,8 @@ def reset_platform():
     reset_sync_registry()
     coordination_service.clear()
     distributed_lock_coordinator.clear()
+    recovery_manager.clear()
+    replication_manager.clear()
 
     logger.info(f"Platform reset: removed {workloads_deleted} workload(s)")
 

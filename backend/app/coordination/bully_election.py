@@ -50,7 +50,7 @@ class BullyElectionManager:
         self.node_id = node_id
         self.election_id = election_id
         self._send_message = send_message
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._state = ElectionState.IDLE
         self._coordinator_node_id: Optional[str] = None
         self._coordinator_election_id: int = -1

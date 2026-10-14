@@ -148,6 +148,7 @@ class WorkloadService:
                 WorkloadStatus.COMPLETED,
                 WorkloadStatus.FAILED,
                 WorkloadStatus.CANCELLED,
+                WorkloadStatus.QUEUED,
             },
             WorkloadStatus.COMPLETED: set(),
             WorkloadStatus.FAILED: set(),

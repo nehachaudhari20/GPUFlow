@@ -134,6 +134,16 @@ class ClusterState:
 
         for node_id in offline_ids:
             resource_manager.mark_offline(node_id)
+            try:
+                from backend.app.recovery.recovery_manager import recovery_manager
+                from backend.app.services.workload_service import workload_service
+                from backend.app.scheduler.scheduler import scheduler
+
+                recovery_manager.on_worker_failure(
+                    node_id, workload_service, scheduler, self, resource_manager
+                )
+            except Exception as exc:
+                logger.warning("Recovery hook failed for %s: %s", node_id, exc)
 
     def sync_node_resources(self, node_id: str):
         view = resource_manager.get_node_resources(node_id)

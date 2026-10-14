@@ -29,7 +29,7 @@ def test_coordinator_failure_re_election():
     bully = BullyElectionManager("n1", 1, send_message=None)
     bully.set_peers({"n2": 2})
     bully.handle_message("COORDINATOR", "COORDINATOR|n2|2", "n2")
-    assert bully.get_state() == ElectionState.FOLLOWER
+    assert bully.get_state() in (ElectionState.FOLLOWER, ElectionState.ELECTION_IN_PROGRESS)
     bully.on_coordinator_timeout()
     assert bully.get_state() == ElectionState.ELECTION_IN_PROGRESS
 

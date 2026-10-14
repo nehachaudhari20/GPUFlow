@@ -13,6 +13,8 @@ from backend.app.api.events import router as events_router
 from backend.app.api.admin import router as admin_router
 from backend.app.api.fa2_synchronization import router as fa2_router
 from backend.app.api.fa2_coordination import router as fa2_coordination_router
+from backend.app.api.fa2_recovery import router as fa2_recovery_router
+from backend.app.api.fa2_services import router as fa2_services_router
 from backend.app.api.websocket import router as ws_router, setup_event_broadcaster
 import asyncio
 
@@ -25,6 +27,8 @@ app.include_router(events_router)
 app.include_router(admin_router)
 app.include_router(fa2_router)
 app.include_router(fa2_coordination_router)
+app.include_router(fa2_recovery_router)
+app.include_router(fa2_services_router)
 app.include_router(ws_router)
 
 
@@ -34,6 +38,11 @@ def timeout_checker():
     while True:
         cluster_state.check_timeouts()
         coordination_service.check_beacons()
+        from backend.app.recovery.recovery_manager import recovery_manager
+        from backend.app.services.workload_service import workload_service
+        from backend.app.scheduler.scheduler import scheduler
+
+        recovery_manager.process_retry_queue(workload_service, scheduler)
         time.sleep(1)
 
 
