@@ -79,6 +79,12 @@ export default function EventTimeline({ events }: Props) {
                     )}
                   </div>
                   <p className="text-slate-300 font-medium">{event.message}</p>
+                  {'lamport_timestamp' in event && event.lamport_timestamp != null && (
+                    <p className="text-[10px] text-violet-400/80 font-mono mt-1">
+                      Lamport {String(event.lamport_timestamp)}
+                      {event.vector_clock ? ` · vector ${JSON.stringify(event.vector_clock)}` : ''}
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { LayoutDashboard, ListTodo, Server, PlusCircle, MessageSquare, Briefcase, RotateCcw, Loader2 } from 'lucide-react';
+import { LayoutDashboard, ListTodo, Server, PlusCircle, MessageSquare, Briefcase, RotateCcw, Loader2, Network } from 'lucide-react';
+import Fa2Hub from './components/fa2/Fa2Hub';
 import { cn } from './utils';
 import { apiPost } from './api';
 
@@ -11,7 +12,7 @@ import SubmitWorkload from './components/SubmitWorkload';
 import SchedulerView from './components/SchedulerView';
 import { useClusterData } from './hooks/useClusterData';
 
-type Tab = 'dashboard' | 'workloads' | 'cluster' | 'scheduler' | 'events' | 'submit';
+type Tab = 'dashboard' | 'workloads' | 'cluster' | 'scheduler' | 'events' | 'submit' | 'fa2';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -41,6 +42,7 @@ export default function App() {
     { id: 'workloads', label: 'Workloads Config', icon: ListTodo },
     { id: 'scheduler', label: 'Scheduler Insights', icon: Briefcase },
     { id: 'events', label: 'Communication Log', icon: MessageSquare },
+    { id: 'fa2', label: 'FA2 Distributed', icon: Network },
   ] as const;
 
   return (
@@ -48,7 +50,7 @@ export default function App() {
       <nav className="w-64 border-r border-slate-800 flex flex-col shrink-0">
         <div className="p-6 border-b border-slate-800">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">GPUFlow</h1>
-          <p className="text-xs text-slate-500 mt-1">Distributed FA1 Platform</p>
+          <p className="text-xs text-slate-500 mt-1">FA1 + FA2 Distributed Platform</p>
         </div>
         <div className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
@@ -115,6 +117,7 @@ export default function App() {
           <SchedulerView workloads={workloads} nodes={nodes} refresh={refresh} cpuOnlyMode={cpuOnlyMode} />
         )}
         {activeTab === 'events' && <EventTimeline events={events} />}
+        {activeTab === 'fa2' && <Fa2Hub />}
       </main>
     </div>
   );

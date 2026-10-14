@@ -1,6 +1,7 @@
 import { ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import type { WorkerNode, Workload, ClusterResourceResponse } from '../types';
 import { Activity, Server, CheckCircle2, XCircle, GitCommit } from 'lucide-react';
+import Fa2OverviewStrip from './fa2/Fa2OverviewStrip';
 
 interface Props {
   nodes: WorkerNode[];
@@ -20,6 +21,8 @@ export default function Dashboard({ nodes, workloads, resources }: Props) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <h2 className="text-2xl font-bold tracking-tight">Cluster Dashboard</h2>
+
+      <Fa2OverviewStrip />
 
       <div className="grid grid-cols-4 gap-4">
         <MetricCard title="Total Nodes" value={nodes.length} icon={<Server className="text-blue-400" />} />

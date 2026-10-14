@@ -97,4 +97,6 @@ export interface SystemEvent {
   node_id?: string | null;
   source?: string;
   destination?: string;
+  lamport_timestamp?: number | null;
+  vector_clock?: Record<string, number> | null;
 }
