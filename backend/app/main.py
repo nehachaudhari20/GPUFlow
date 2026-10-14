@@ -70,7 +70,11 @@ def get_failure_events():
 @app.get("/cluster")
 @app.get("/resources/cluster")
 def get_cluster_resources():
-    return resource_manager.get_cluster_resources()
+    cluster = resource_manager.get_cluster_resources()
+    payload = cluster.model_dump()
+    payload["cpu_only_mode"] = settings.cpu_only_mode
+    payload["simulate_gpus"] = settings.simulate_gpus
+    return payload
 
 
 @app.get("/resources/nodes/{node_id}")

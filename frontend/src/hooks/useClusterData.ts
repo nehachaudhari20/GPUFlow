@@ -27,6 +27,8 @@ export function useClusterData() {
         available_cpus: resourcesRes.cpu_available ?? 0,
         total_ram: resourcesRes.ram_total ?? 0,
         available_ram: resourcesRes.ram_available ?? 0,
+        cpu_only_mode: resourcesRes.cpu_only_mode ?? false,
+        simulate_gpus: resourcesRes.simulate_gpus ?? true,
       });
       setEvents(Array.isArray(eventsRes) ? eventsRes : eventsRes.events || []);
     } catch (e) {

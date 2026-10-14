@@ -17,6 +17,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [resetting, setResetting] = useState(false);
   const { nodes, workloads, resources, events, refresh, queuedCount, runningCount } = useClusterData();
+  const cpuOnlyMode = resources?.cpu_only_mode ?? false;
 
   const handleReset = async () => {
     if (!window.confirm('Clear all workloads, events, and queue data? Workers will re-register.')) return;
@@ -83,6 +84,11 @@ export default function App() {
             <span>Running</span>
             <span className="text-emerald-400 font-mono">{runningCount}</span>
           </div>
+          {cpuOnlyMode && (
+            <div className="text-amber-400/90 text-[10px] uppercase tracking-wide pt-1">
+              CPU-only AWS cluster
+            </div>
+          )}
           <button
             onClick={handleReset}
             disabled={resetting}
@@ -96,15 +102,18 @@ export default function App() {
 
       <main className="flex-1 overflow-y-auto p-8 relative scroll-smooth">
         {activeTab === 'dashboard' && <Dashboard nodes={nodes} workloads={workloads} resources={resources} />}
-        {activeTab === 'cluster' && <ClusterNodes nodes={nodes} />}
+        {activeTab === 'cluster' && <ClusterNodes nodes={nodes} cpuOnlyMode={cpuOnlyMode} />}
         {activeTab === 'submit' && (
           <SubmitWorkload
             refresh={refresh}
+            cpuOnlyMode={cpuOnlyMode}
             onSubmitSuccess={() => { refresh(); setActiveTab('workloads'); }}
           />
         )}
         {activeTab === 'workloads' && <Workloads workloads={workloads} nodes={nodes} refresh={refresh} />}
-        {activeTab === 'scheduler' && <SchedulerView workloads={workloads} nodes={nodes} refresh={refresh} />}
+        {activeTab === 'scheduler' && (
+          <SchedulerView workloads={workloads} nodes={nodes} refresh={refresh} cpuOnlyMode={cpuOnlyMode} />
+        )}
         {activeTab === 'events' && <EventTimeline events={events} />}
       </main>
     </div>

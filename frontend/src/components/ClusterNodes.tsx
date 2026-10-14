@@ -3,14 +3,19 @@ import { Server, Activity, Cpu, HardDrive, AlertTriangle, CheckCircle2 } from 'l
 
 interface Props {
   nodes: WorkerNode[];
+  cpuOnlyMode?: boolean;
 }
 
-export default function ClusterNodes({ nodes }: Props) {
+export default function ClusterNodes({ nodes, cpuOnlyMode = false }: Props) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Cluster Nodes</h2>
-        <p className="text-sm text-slate-400">Heterogeneous worker nodes with real-time heartbeat and resource status</p>
+        <p className="text-sm text-slate-400">
+          {cpuOnlyMode
+            ? 'AWS EC2 workers reporting real CPU/RAM (CPU-only mode — no GPUs)'
+            : 'Heterogeneous worker nodes with real-time heartbeat and resource status'}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

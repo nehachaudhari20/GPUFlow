@@ -25,7 +25,12 @@ export default function Dashboard({ nodes, workloads, resources }: Props) {
         <MetricCard title="Total Nodes" value={nodes.length} icon={<Server className="text-blue-400" />} />
         <MetricCard title="Healthy Nodes" value={healthyNodes} icon={<CheckCircle2 className="text-emerald-400" />} />
         <MetricCard title="Offline Nodes" value={offlineNodes} icon={<XCircle className="text-red-400" />} />
-        <MetricCard title="Total GPUs" value={resources?.total_gpus || 0} icon={<Activity className="text-purple-400" />} />
+        {!resources?.cpu_only_mode && (
+          <MetricCard title="Total GPUs" value={resources?.total_gpus || 0} icon={<Activity className="text-purple-400" />} />
+        )}
+        {resources?.cpu_only_mode && (
+          <MetricCard title="Total CPUs" value={resources?.total_cpus || 0} icon={<Activity className="text-blue-400" />} />
+        )}
       </div>
 
       <div className="grid grid-cols-4 gap-4">
@@ -36,7 +41,8 @@ export default function Dashboard({ nodes, workloads, resources }: Props) {
       </div>
 
       {resources && (
-        <div className="grid grid-cols-3 gap-6 pt-6">
+        <div className={`grid gap-6 pt-6 ${resources.cpu_only_mode ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          {!resources.cpu_only_mode && (
           <ResourceUtilizationCard
             title="GPU Utilization"
             total={resources.total_gpus}
@@ -44,6 +50,7 @@ export default function Dashboard({ nodes, workloads, resources }: Props) {
             unit="GPUs"
             color="#a855f7" // purple
           />
+          )}
           <ResourceUtilizationCard
             title="CPU Utilization"
             total={resources.total_cpus}

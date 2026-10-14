@@ -8,6 +8,7 @@ interface Props {
   workloads: Workload[];
   nodes: WorkerNode[];
   refresh: () => void;
+  cpuOnlyMode?: boolean;
 }
 
 interface SchedulingDecision {
@@ -29,7 +30,7 @@ interface SchedulingDecision {
   }>;
 }
 
-export default function SchedulerView({ workloads, nodes, refresh }: Props) {
+export default function SchedulerView({ workloads, nodes, refresh, cpuOnlyMode = false }: Props) {
   const orderedQueue = useMemo(() => sortQueuedWorkloads(workloads), [workloads]);
   const nextJob = useMemo(() => getNextQueuedJob(workloads), [workloads]);
   const [decision, setDecision] = useState<SchedulingDecision | null>(null);
@@ -82,7 +83,10 @@ export default function SchedulerView({ workloads, nodes, refresh }: Props) {
           <p className="font-semibold text-slate-200">Two automatic layers:</p>
           <p className="text-slate-400">
             <strong className="text-yellow-400">1. Queue order</strong> — CRITICAL → HIGH → MEDIUM → LOW, then oldest first (FCFS).<br />
-            <strong className="text-emerald-400">2. Worker placement</strong> — Score = 40% GPU + 25% CPU + 15% RAM + 10% Health + 10% Load Balance
+            <strong className="text-emerald-400">2. Worker placement</strong> —{' '}
+            {cpuOnlyMode
+              ? 'Score = 45% CPU + 25% RAM + 10% Health + 20% Load Balance (CPU-only AWS cluster)'
+              : 'Score = 40% GPU + 25% CPU + 15% RAM + 10% Health + 10% Load Balance'}
           </p>
         </div>
       </div>
@@ -126,7 +130,9 @@ export default function SchedulerView({ workloads, nodes, refresh }: Props) {
                     {new Date(job.created_at * 1000).toLocaleTimeString()}
                   </td>
                   <td className="p-3 text-xs text-slate-400">
-                    {job.gpu_required} GPU, {job.cpu_required} CPU
+                    {cpuOnlyMode
+                      ? `${job.cpu_required} CPU, ${job.ram_required}GB RAM`
+                      : `${job.gpu_required} GPU, ${job.cpu_required} CPU`}
                   </td>
                 </tr>
               ))}
@@ -205,11 +211,11 @@ export default function SchedulerView({ workloads, nodes, refresh }: Props) {
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/30">
                   <th className="p-3 pl-4">Worker</th>
-                  <th className="p-3 text-emerald-400">GPU (40%)</th>
-                  <th className="p-3 text-blue-400">CPU (25%)</th>
-                  <th className="p-3 text-teal-400">RAM (15%)</th>
+                  {!cpuOnlyMode && <th className="p-3 text-emerald-400">GPU (40%)</th>}
+                  <th className="p-3 text-blue-400">CPU ({cpuOnlyMode ? '45%' : '25%'})</th>
+                  <th className="p-3 text-teal-400">RAM ({cpuOnlyMode ? '25%' : '15%'})</th>
                   <th className="p-3 text-slate-400">Health (10%)</th>
-                  <th className="p-3 text-slate-400">Load Bal (10%)</th>
+                  <th className="p-3 text-slate-400">Load Bal ({cpuOnlyMode ? '20%' : '10%'})</th>
                   <th className="p-3 font-semibold text-white bg-slate-800/40">Total</th>
                 </tr>
               </thead>
@@ -223,7 +229,9 @@ export default function SchedulerView({ workloads, nodes, refresh }: Props) {
                       <CheckCircle2 size={14} className="text-emerald-500" />
                       {node.hostname || node.node_id.substring(0, 8)}
                     </td>
-                    <td className="p-3 text-slate-400">{node.scores.gpu_availability.toFixed(1)}</td>
+                    {!cpuOnlyMode && (
+                      <td className="p-3 text-slate-400">{node.scores.gpu_availability.toFixed(1)}</td>
+                    )}
                     <td className="p-3 text-slate-400">{node.scores.cpu_availability.toFixed(1)}</td>
                     <td className="p-3 text-slate-400">{node.scores.ram_availability.toFixed(1)}</td>
                     <td className="p-3 text-slate-400">{node.scores.health.toFixed(1)}</td>
@@ -237,14 +245,14 @@ export default function SchedulerView({ workloads, nodes, refresh }: Props) {
                       <XCircle size={14} className="text-red-500" />
                       {node.hostname || node.node_id.substring(0, 8)}
                     </td>
-                    <td colSpan={6} className="p-3 text-red-300 font-sans text-xs">
+                    <td colSpan={cpuOnlyMode ? 5 : 6} className="p-3 text-red-300 font-sans text-xs">
                       {node.reasons.join(', ')}
                     </td>
                   </tr>
                 ))}
                 {(!decision.candidate_nodes?.length && !decision.rejected_nodes?.length) && (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-500 font-sans">
+                    <td colSpan={cpuOnlyMode ? 6 : 7} className="p-6 text-center text-slate-500 font-sans">
                       No workers available to evaluate.
                     </td>
                   </tr>

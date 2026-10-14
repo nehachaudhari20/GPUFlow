@@ -1,0 +1,17 @@
+[Unit]
+Description=GPUFlow Worker Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/gpuflow
+Environment=PYTHONPATH=/opt/gpuflow
+EnvironmentFile=/opt/gpuflow/worker.env
+ExecStart=/opt/gpuflow/.venv/bin/python backend/app/worker/node.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

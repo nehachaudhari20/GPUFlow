@@ -6,6 +6,7 @@ import { apiPost } from '../api';
 interface Props {
   onSubmitSuccess: () => void;
   refresh: () => void;
+  cpuOnlyMode?: boolean;
 }
 
 async function waitForSchedule(
@@ -36,14 +37,14 @@ async function waitForSchedule(
   return final;
 }
 
-export default function SubmitWorkload({ onSubmitSuccess, refresh }: Props) {
+export default function SubmitWorkload({ onSubmitSuccess, refresh, cpuOnlyMode = false }: Props) {
   const [name, setName] = useState('');
   const [type, setType] = useState<WorkloadType>('TRAINING');
   const [priority, setPriority] = useState<Priority>('MEDIUM');
-  const [gpuRequired, setGpuRequired] = useState(1.0);
-  const [gpuMemoryRequired, setGpuMemoryRequired] = useState(4.0);
-  const [cpuRequired, setCpuRequired] = useState(2.0);
-  const [ramRequired, setRamRequired] = useState(8.0);
+  const [gpuRequired, setGpuRequired] = useState(cpuOnlyMode ? 0 : 1.0);
+  const [gpuMemoryRequired, setGpuMemoryRequired] = useState(cpuOnlyMode ? 0 : 4.0);
+  const [cpuRequired, setCpuRequired] = useState(cpuOnlyMode ? 1.0 : 2.0);
+  const [ramRequired, setRamRequired] = useState(cpuOnlyMode ? 2.0 : 8.0);
   const [estimatedDuration, setEstimatedDuration] = useState(30);
 
   const [submitting, setSubmitting] = useState(false);
@@ -93,6 +94,11 @@ export default function SubmitWorkload({ onSubmitSuccess, refresh }: Props) {
         <h2 className="text-2xl font-bold tracking-tight">Submit Workload</h2>
         <p className="text-sm text-slate-400">
           Jobs auto-start when the cluster is idle (Priority + FCFS). If another job is already running, new jobs queue automatically.
+          {cpuOnlyMode && (
+            <span className="block mt-1 text-amber-400/90">
+              CPU-only cluster — set GPU and VRAM to 0. Match CPU/RAM to your EC2 instance size.
+            </span>
+          )}
         </p>
       </div>
 
@@ -216,8 +222,13 @@ export default function SubmitWorkload({ onSubmitSuccess, refresh }: Props) {
           <div className="border-t border-slate-800 pt-5">
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
               Resource Requirements
+              {cpuOnlyMode && (
+                <span className="ml-2 normal-case font-normal text-amber-400/80">(AWS CPU workers)</span>
+              )}
             </h4>
-            <div className="grid grid-cols-4 gap-4">
+            <div className={`grid gap-4 ${cpuOnlyMode ? 'grid-cols-2' : 'grid-cols-4'}`}>
+              {!cpuOnlyMode && (
+                <>
               <div>
                 <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
                   <Activity size={13} className="text-purple-400" /> GPU Count
@@ -245,6 +256,8 @@ export default function SubmitWorkload({ onSubmitSuccess, refresh }: Props) {
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
                 />
               </div>
+                </>
+              )}
 
               <div>
                 <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">

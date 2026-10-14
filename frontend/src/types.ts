@@ -43,6 +43,8 @@ export interface ClusterResourceResponse {
   available_cpus: number;
   total_ram: number;
   available_ram: number;
+  cpu_only_mode?: boolean;
+  simulate_gpus?: boolean;
 }
 
 export interface NodeEvaluation {

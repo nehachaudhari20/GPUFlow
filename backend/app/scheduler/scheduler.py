@@ -83,7 +83,7 @@ class Scheduler:
                 )
 
         if not candidate_nodes:
-            reason = "No eligible nodes satisfy workload resource requirements"
+            reason = self._build_no_candidate_reason(rejected_nodes, requirements)
             logger.info(f"Job {workload.job_id} kept QUEUED: {reason}")
             return SchedulingDecision(
                 job_id=workload.job_id,
@@ -210,11 +210,38 @@ class Scheduler:
                 self._cluster_state.sync_node_resources(decision.selected_node)
                 decision.allocation_success = False
                 decision.kept_queued = True
+                target = f"{node.hostname}:{node.grpc_port}" if node else decision.selected_node
                 decision.reason = (
-                    f"Worker on node {decision.selected_node} rejected task "
-                    "(node busy or unavailable); job kept in queue"
+                    f"Cannot reach worker at {target} to assign task — "
+                    f"run scripts/start-laptop-control.ps1 (SSH tunnels) or open AWS "
+                    f"security group inbound port 50052 from your laptop IP"
                 )
         return decision
+
+    @staticmethod
+    def _build_no_candidate_reason(
+        rejected_nodes: List[RejectedNode],
+        requirements: ResourceRequirements,
+    ) -> str:
+        if not rejected_nodes:
+            return (
+                "No worker nodes registered — start AWS workers or run "
+                "docker compose workers and wait ~15s"
+            )
+        if requirements.gpu > 0 or requirements.gpu_memory > 0:
+            all_no_gpu = all(
+                any("Insufficient GPU" in r for r in node.reasons)
+                for node in rejected_nodes
+            )
+            if all_no_gpu:
+                return (
+                    "Cluster is CPU-only (0 GPUs on workers). Submit with GPU=0 and "
+                    "VRAM=0, using CPU and RAM only."
+                )
+        busy = [n for n in rejected_nodes if any("busy" in r.lower() for r in n.reasons)]
+        if busy and len(busy) == len(rejected_nodes):
+            return "All workers are busy running other jobs — job kept in queue"
+        return "No eligible nodes satisfy workload resource requirements"
 
     def schedule_all_queued(
         self, workload_service: WorkloadService

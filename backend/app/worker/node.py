@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import grpc
 import time
 import uuid
@@ -16,6 +18,7 @@ import gpuflow_pb2_grpc
 from backend.app.config import settings
 from backend.app.core.logging import setup_logging
 from backend.app.worker.worker_server import start_worker_server
+from backend.app.worker.hardware_probe import probe_host_resources
 
 logger = logging.getLogger(__name__)
 
@@ -27,28 +30,39 @@ def find_free_port():
 class WorkerDaemon:
     def __init__(self):
         self.node_id = str(uuid.uuid4())
+        self.worker_name = os.environ.get("WORKER_NAME", "")
         self.hostname = os.environ.get("WORKER_HOSTNAME") or socket.gethostname()
         self.channel = None
         self.stub = None
         self.running = False
-        self.grpc_port = find_free_port()
+
+        configured_port = int(
+            os.environ.get("WORKER_GRPC_PORT", settings.worker_grpc_port or 0)
+        )
+        self.listen_port = configured_port if configured_port > 0 else find_free_port()
+        # Port scheduler uses to call back (may differ via SSH tunnel on laptop setup)
+        self.advertise_port = int(
+            os.environ.get("WORKER_ADVERTISE_GRPC_PORT", self.listen_port)
+        )
+        self.grpc_port = self.listen_port
         self.server = None
 
-        self.cpu_total = float(psutil.cpu_count(logical=True))
-        self.ram_total = psutil.virtual_memory().total / (1024**3)
-
-        if settings.simulate_gpus:
-            self.gpu_total = settings.simulated_gpu_count
-            self.gpu_memory_total = settings.simulated_gpu_memory_gb
-        else:
-            self.gpu_total = 0.0
-            self.gpu_memory_total = 0.0
+        resources = probe_host_resources(
+            simulate_gpus=settings.simulate_gpus,
+            simulated_gpu_count=settings.simulated_gpu_count,
+            simulated_gpu_memory_gb=settings.simulated_gpu_memory_gb,
+        )
+        self.cpu_total = resources.cpu_total
+        self.ram_total = resources.ram_total_gb
+        self.gpu_total = resources.gpu_total
+        self.gpu_memory_total = resources.gpu_memory_total_gb
+        self.resource_source = resources.source
 
     def start(self, scheduler_address: str | None = None):
         address = scheduler_address or settings.scheduler_address
         self.scheduler_address = address
         self.server = start_worker_server(
-            self.node_id, self.grpc_port, scheduler_address=address, daemon=self
+            self.node_id, self.listen_port, scheduler_address=address, daemon=self
         )
 
         self.channel = grpc.insecure_channel(address)
@@ -81,11 +95,17 @@ class WorkerDaemon:
                 ram_total=self.ram_total,
                 gpu_total=self.gpu_total,
                 gpu_memory_total=self.gpu_memory_total,
-                grpc_port=self.grpc_port,
+                grpc_port=self.advertise_port,
             )
             res = self.stub.RegisterNode(req)
             if res.success:
-                logger.info(f"Worker {self.node_id} successfully registered with scheduler.")
+                label = self.worker_name or self.hostname
+                logger.info(
+                    f"Worker {self.node_id} ({label}) registered — "
+                    f"cpu={self.cpu_total} ram={self.ram_total:.1f}GB "
+                    f"gpu={self.gpu_total} source={self.resource_source} "
+                    f"listen={self.listen_port} advertise={self.hostname}:{self.advertise_port}"
+                )
                 self.running = True
                 return True
             logger.error("Registration failed.")
@@ -118,7 +138,7 @@ class WorkerDaemon:
                     ram_available=ram_avail,
                     gpu_available=gpu_avail,
                     gpu_memory_available=gpu_mem_avail,
-                    grpc_port=self.grpc_port,
+                    grpc_port=self.advertise_port,
                 )
                 self.stub.SendHeartbeat(req)
             except Exception as e:
@@ -160,8 +180,11 @@ def main():
     setup_logging()
     daemon = WorkerDaemon()
     daemon.start()
+    label = daemon.worker_name or daemon.hostname
     logger.info(
-        f"Worker node {daemon.node_id} running on port {daemon.grpc_port}. Press Ctrl+C to stop."
+        f"Worker {label} ({daemon.node_id}) listening on 0.0.0.0:{daemon.listen_port} "
+        f"advertised as {daemon.hostname}:{daemon.advertise_port} "
+        f"[{daemon.resource_source}]. Press Ctrl+C to stop."
     )
     try:
         while daemon.running:

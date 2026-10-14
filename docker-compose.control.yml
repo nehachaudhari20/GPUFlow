@@ -1,0 +1,38 @@
+# Control plane only — run on scheduler EC2 or laptop.
+# Workers run separately on AWS EC2 instances (see deploy/aws-worker.env.example).
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - deploy/aws-control.env.example
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/gpuflow
+      - GRPC_PORT=50051
+      - CPU_ONLY_MODE=True
+      - SCHEDULE_GPU_WEIGHT=0.0
+      - SCHEDULE_CPU_WEIGHT=0.45
+      - SCHEDULE_RAM_WEIGHT=0.25
+      - SCHEDULE_HEALTH_WEIGHT=0.10
+      - SCHEDULE_LOAD_BALANCE_WEIGHT=0.20
+    ports:
+      - "8000:8000"
+      - "50051:50051"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - mongodb
+    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"

@@ -25,6 +25,15 @@ class SchedulingPolicy(BaseModel):
     def from_settings(cls) -> "SchedulingPolicy":
         from backend.app.config import settings
 
+        if settings.cpu_only_mode:
+            return cls(
+                gpu_weight=0.0,
+                cpu_weight=0.45,
+                ram_weight=0.25,
+                health_weight=0.10,
+                load_balance_weight=0.20,
+            )
+
         return cls(
             gpu_weight=settings.schedule_gpu_weight,
             cpu_weight=settings.schedule_cpu_weight,
