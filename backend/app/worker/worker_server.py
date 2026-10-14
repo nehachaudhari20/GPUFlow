@@ -166,6 +166,35 @@ class WorkerServicer(gpuflow_pb2_grpc.WorkerServicer):
                 return gpuflow_pb2.ReleaseResourceResponse(success=True)
         return gpuflow_pb2.ReleaseResourceResponse(success=True)
 
+    def StoreFile(self, request, context):
+        import hashlib
+        from pathlib import Path
+
+        base = Path(os.environ.get("GPUFLOW_WORKER_STORAGE", "/tmp/gpuflow-worker-storage"))
+        base.mkdir(parents=True, exist_ok=True)
+        safe_id = request.file_id.replace("/", "").replace("..", "")
+        path = base / safe_id
+        path.write_bytes(request.content)
+        digest = hashlib.sha256(request.content).hexdigest()
+        if request.checksum and request.checksum != digest:
+            path.unlink(missing_ok=True)
+            return gpuflow_pb2.StoreFileResponse(success=False, message="checksum mismatch")
+        return gpuflow_pb2.StoreFileResponse(success=True, message="stored")
+
+    def RetrieveFile(self, request, context):
+        import hashlib
+        from pathlib import Path
+
+        base = Path(os.environ.get("GPUFLOW_WORKER_STORAGE", "/tmp/gpuflow-worker-storage"))
+        safe_id = request.file_id.replace("/", "").replace("..", "")
+        path = base / safe_id
+        if not path.exists():
+            return gpuflow_pb2.RetrieveFileResponse(success=False, message="not found")
+        data = path.read_bytes()
+        return gpuflow_pb2.RetrieveFileResponse(
+            success=True, content=data, checksum=hashlib.sha256(data).hexdigest(), message="ok"
+        )
+
     def SendPeerMessage(self, request, context):
         """P2P messaging between workers (Unit 2 syllabus)."""
         logger.info(

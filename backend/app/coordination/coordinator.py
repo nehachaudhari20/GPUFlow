@@ -52,11 +52,26 @@ class CoordinationService:
         self, node_id: str, election_id: int, election_record: Optional[Dict[str, Any]] = None
     ) -> None:
         with self._lock:
-            if election_id >= self._coordinator_election_id:
+            changed = election_id >= self._coordinator_election_id
+            if changed:
                 self._coordinator_node_id = node_id
                 self._coordinator_election_id = election_id
         if election_record:
-            pass
+            self.ingest_election_report(election_record)
+        elif changed:
+            self.ingest_election_report(
+                {
+                    "election_id": f"report-{node_id}-{int(time.time())}",
+                    "initiator_node_id": node_id,
+                    "participating_nodes": list(self._members.keys()),
+                    "elected_coordinator_node_id": node_id,
+                    "start_timestamp": time.time(),
+                    "end_timestamp": time.time(),
+                    "duration_ms": 0.0,
+                    "reason": "coordinator_announcement",
+                    "events": [{"type": "COORDINATOR", "node_id": node_id}],
+                }
+            )
 
     def record_election(self, record: ElectionRecord) -> None:
         with self._lock:

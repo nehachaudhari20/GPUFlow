@@ -104,6 +104,8 @@ service Worker {
     rpc ReleaseResources (ReleaseResourceRequest) returns (ReleaseResourceResponse) {}
     // P2P worker communication (Unit 2 Communication syllabus)
     rpc SendPeerMessage (PeerMessageRequest) returns (PeerMessageResponse) {}
+    rpc StoreFile (StoreFileRequest) returns (StoreFileResponse) {}
+    rpc RetrieveFile (RetrieveFileRequest) returns (RetrieveFileResponse) {}
 }
 
 message AssignTaskRequest {
@@ -171,4 +173,27 @@ message PeerMessageRequest {
 message PeerMessageResponse {
     bool success = 1;
     string reply_payload = 2;
+}
+
+message StoreFileRequest {
+    string file_id = 1;
+    string original_filename = 2;
+    bytes content = 3;
+    string checksum = 4;
+}
+
+message StoreFileResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message RetrieveFileRequest {
+    string file_id = 1;
+}
+
+message RetrieveFileResponse {
+    bool success = 1;
+    bytes content = 2;
+    string checksum = 3;
+    string message = 4;
 }

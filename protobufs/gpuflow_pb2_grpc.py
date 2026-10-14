@@ -264,6 +264,16 @@ class WorkerStub:
                 request_serializer=gpuflow__pb2.PeerMessageRequest.SerializeToString,
                 response_deserializer=gpuflow__pb2.PeerMessageResponse.FromString,
                 _registered_method=True)
+        self.StoreFile = channel.unary_unary(
+                '/gpuflow.Worker/StoreFile',
+                request_serializer=gpuflow__pb2.StoreFileRequest.SerializeToString,
+                response_deserializer=gpuflow__pb2.StoreFileResponse.FromString,
+                _registered_method=True)
+        self.RetrieveFile = channel.unary_unary(
+                '/gpuflow.Worker/RetrieveFile',
+                request_serializer=gpuflow__pb2.RetrieveFileRequest.SerializeToString,
+                response_deserializer=gpuflow__pb2.RetrieveFileResponse.FromString,
+                _registered_method=True)
 
 
 class WorkerServicer:
@@ -300,6 +310,18 @@ class WorkerServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def StoreFile(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RetrieveFile(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -327,6 +349,16 @@ def add_WorkerServicer_to_server(servicer, server):
                     servicer.SendPeerMessage,
                     request_deserializer=gpuflow__pb2.PeerMessageRequest.FromString,
                     response_serializer=gpuflow__pb2.PeerMessageResponse.SerializeToString,
+            ),
+            'StoreFile': grpc.unary_unary_rpc_method_handler(
+                    servicer.StoreFile,
+                    request_deserializer=gpuflow__pb2.StoreFileRequest.FromString,
+                    response_serializer=gpuflow__pb2.StoreFileResponse.SerializeToString,
+            ),
+            'RetrieveFile': grpc.unary_unary_rpc_method_handler(
+                    servicer.RetrieveFile,
+                    request_deserializer=gpuflow__pb2.RetrieveFileRequest.FromString,
+                    response_serializer=gpuflow__pb2.RetrieveFileResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -464,6 +496,60 @@ class Worker:
             '/gpuflow.Worker/SendPeerMessage',
             gpuflow__pb2.PeerMessageRequest.SerializeToString,
             gpuflow__pb2.PeerMessageResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StoreFile(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gpuflow.Worker/StoreFile',
+            gpuflow__pb2.StoreFileRequest.SerializeToString,
+            gpuflow__pb2.StoreFileResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RetrieveFile(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gpuflow.Worker/RetrieveFile',
+            gpuflow__pb2.RetrieveFileRequest.SerializeToString,
+            gpuflow__pb2.RetrieveFileResponse.FromString,
             options,
             channel_credentials,
             insecure,
