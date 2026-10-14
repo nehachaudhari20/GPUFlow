@@ -19,11 +19,24 @@ from backend.app.scheduler.resource_manager import resource_manager
 from backend.app.services.workload_service import workload_service
 from backend.app.scheduler.scheduler import scheduler
 from backend.app.config import settings
+from backend.app.events.event_manager import EventType
+from backend.app.synchronization.process_sync import get_coordinator_sync
+from backend.app.synchronization.grpc_metadata import vector_from_proto, apply_vector_to_proto
+from backend.app.synchronization.event_sync import log_event_with_clocks
+from backend.app.synchronization.clock_sync import clock_sync_registry, CristianSyncSample
 
 logger = logging.getLogger(__name__)
 
+
 class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
     def RegisterNode(self, request, context):
+        coord = get_coordinator_sync()
+        remote_vector = vector_from_proto(request.vector_clock)
+        if request.lamport_time:
+            lamport, vector = coord.on_receive(int(request.lamport_time), remote_vector)
+        else:
+            lamport, vector = coord.on_local_event()
+
         node = WorkerNode(
             node_id=request.node_id,
             hostname=request.hostname,
@@ -39,21 +52,68 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
             status="ONLINE",
             last_heartbeat=time.time()
         )
-        cluster_state.register_node(node)
+        cluster_state.register_node(node, lamport=lamport, vector=vector)
         return gpuflow_pb2.RegisterNodeResponse(success=True, message="Node registered successfully")
 
     def SendHeartbeat(self, request, context):
+        server_receive_ms = time.time() * 1000.0
+        coord = get_coordinator_sync()
+        remote_vector = vector_from_proto(request.vector_clock)
+
+        if request.lamport_time:
+            log_event_with_clocks(
+                EventType.HEARTBEAT_SENT,
+                int(request.lamport_time),
+                remote_vector,
+                source="WORKER",
+                destination="SCHEDULER",
+                node_id=request.node_id,
+                message=f"Heartbeat sent from {request.node_id}",
+            )
+            lamport, vector = coord.on_receive(int(request.lamport_time), remote_vector)
+        else:
+            lamport, vector = coord.on_local_event()
+
         cluster_state.update_heartbeat(
             node_id=request.node_id,
             status=request.status,
-            timestamp=request.timestamp / 1000.0, # convert to seconds
+            timestamp=request.timestamp / 1000.0,
             cpu_avail=request.cpu_available,
             ram_avail=request.ram_available,
             gpu_avail=request.gpu_available,
             gpu_mem_avail=request.gpu_memory_available,
-            grpc_port=request.grpc_port
+            grpc_port=request.grpc_port,
+            lamport=lamport,
+            vector=vector,
         )
-        return gpuflow_pb2.HeartbeatResponse(acknowledged=True)
+
+        server_reply_ms = time.time() * 1000.0
+        if request.cristian_client_request_ms and request.cristian_client_response_ms:
+            clock_sync_registry.record_cristian_sample(
+                CristianSyncSample(
+                    node_id=request.node_id,
+                    client_request_ms=float(request.cristian_client_request_ms),
+                    client_response_ms=float(request.cristian_client_response_ms),
+                    server_receive_ms=server_receive_ms,
+                    server_reply_ms=server_reply_ms,
+                )
+            )
+        elif request.client_wall_time_ms:
+            clock_sync_registry.record_simple_sync(
+                node_id=request.node_id,
+                worker_wall_ms=float(request.client_wall_time_ms),
+                server_receive_ms=server_receive_ms,
+                server_reply_ms=server_reply_ms,
+            )
+
+        resp_lamport, resp_vector = coord.on_send()
+        response = gpuflow_pb2.HeartbeatResponse(
+            acknowledged=True,
+            server_time_ms=int(server_reply_ms),
+            lamport_time=resp_lamport,
+        )
+        apply_vector_to_proto(response.vector_clock, resp_vector)
+        return response
 
     def SubmitTask(self, request, context):
         try:
@@ -84,6 +144,11 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
 
     def ReportTaskStatus(self, request, context):
         try:
+            coord = get_coordinator_sync()
+            remote_vector = vector_from_proto(request.vector_clock)
+            if request.lamport_time:
+                coord.on_receive(int(request.lamport_time), remote_vector)
+
             status_enum = WorkloadStatus(request.status)
             workload = workload_service.get_workload(request.task_id)
             if workload:

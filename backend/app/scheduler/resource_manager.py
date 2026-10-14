@@ -8,7 +8,8 @@ from backend.app.models.resources import (
     ResourceRequirements,
 )
 from backend.app.models.worker import WorkerNode
-from backend.app.events.event_manager import event_manager, EventType
+from backend.app.events.event_manager import EventType
+from backend.app.synchronization.event_sync import log_synchronized_event
 import logging
 
 logger = logging.getLogger(__name__)
@@ -240,8 +241,8 @@ class ResourceManager:
             )
             logger.info(f"Released resources on {node_id} for job {job_id}")
 
-            event_manager.log_event(
-                event_type=EventType.RESOURCE_RELEASED,
+            log_synchronized_event(
+                EventType.RESOURCE_RELEASED,
                 source="SCHEDULER",
                 job_id=job_id,
                 node_id=node_id,
@@ -274,6 +275,23 @@ class ResourceManager:
             and requirements.gpu <= state.gpu_available
             and requirements.gpu_memory <= state.gpu_memory_available
         )
+
+    def list_active_reservations(self) -> list[dict]:
+        with self._lock:
+            rows: list[dict] = []
+            for node_id, state in self._nodes.items():
+                for job_id, req in state.allocations.items():
+                    rows.append(
+                        {
+                            "node_id": node_id,
+                            "job_id": job_id,
+                            "cpu": req.cpu,
+                            "ram": req.ram,
+                            "gpu": req.gpu,
+                            "gpu_memory": req.gpu_memory,
+                        }
+                    )
+            return rows
 
     def reset(self):
         with self._lock:

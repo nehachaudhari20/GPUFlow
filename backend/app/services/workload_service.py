@@ -13,7 +13,8 @@ from backend.app.repositories.workload_repository import (
     InMemoryWorkloadRepository,
     WorkloadRepository,
 )
-from backend.app.events.event_manager import event_manager, EventType
+from backend.app.events.event_manager import EventType
+from backend.app.synchronization.event_sync import log_synchronized_event
 from backend.app.config import settings
 import logging
 
@@ -43,16 +44,16 @@ class WorkloadQueue:
         with self._lock:
             self._repository.insert(workload)
         logger.info(f"Enqueued workload {workload.job_id} with priority {workload.priority.name}")
-        event_manager.log_event(
-            event_type=EventType.JOB_SUBMITTED,
+        log_synchronized_event(
+            EventType.JOB_SUBMITTED,
             source="USER",
             destination="SCHEDULER",
             job_id=workload.job_id,
             message=f"Job {workload.name} submitted",
             metadata={"priority": workload.priority.name, "type": workload.type.name},
         )
-        event_manager.log_event(
-            event_type=EventType.JOB_QUEUED,
+        log_synchronized_event(
+            EventType.JOB_QUEUED,
             source="SCHEDULER",
             job_id=workload.job_id,
             message=f"Job {workload.job_id} placed in queue",
@@ -120,8 +121,8 @@ class WorkloadService:
                 WorkloadStatus.FAILED: EventType.TASK_FAILED,
             }
             if status in event_map:
-                event_manager.log_event(
-                    event_type=event_map[status],
+                log_synchronized_event(
+                    event_map[status],
                     source="SCHEDULER",
                     job_id=job_id,
                     node_id=assigned_node or workload.assigned_node,

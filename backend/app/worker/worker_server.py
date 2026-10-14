@@ -13,6 +13,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "proto
 import gpuflow_pb2
 import gpuflow_pb2_grpc
 from backend.app.config import settings
+from backend.app.synchronization.process_sync import get_worker_sync
+from backend.app.synchronization.grpc_metadata import vector_from_proto
+from backend.app.synchronization.event_sync import log_synchronized_event
+from backend.app.events.event_manager import EventType
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +37,18 @@ class WorkerServicer(gpuflow_pb2_grpc.WorkerServicer):
         try:
             with grpc.insecure_channel(self.scheduler_address) as channel:
                 stub = gpuflow_pb2_grpc.SchedulerStub(channel)
+                sync = get_worker_sync(self.node_id)
+                lamport, vector = sync.on_send()
                 req = gpuflow_pb2.TaskStatusReportRequest(
                     task_id=task_id,
                     node_id=self.node_id,
                     status=status,
                     message=message,
                     timestamp=int(time.time() * 1000),
+                    lamport_time=lamport,
                 )
+                for key, value in vector.items():
+                    req.vector_clock[key] = value
                 stub.ReportTaskStatus(req, timeout=3.0)
         except Exception as e:
             logger.error(f"Worker {self.node_id} failed to report task status {status} for {task_id}: {e}")
@@ -51,6 +60,15 @@ class WorkerServicer(gpuflow_pb2_grpc.WorkerServicer):
         )
         with self._lock:
             self.tasks[task_id] = "RUNNING"
+        log_synchronized_event(
+            EventType.TASK_STARTED,
+            sync=get_worker_sync(self.node_id),
+            source="WORKER",
+            destination="SCHEDULER",
+            job_id=task_id,
+            node_id=self.node_id,
+            message="Task execution started",
+        )
         self._report_status_to_scheduler(task_id, "RUNNING", "Task execution started")
 
         run_time = max(duration, 0.5) if duration > 0 else 0.5
@@ -66,6 +84,22 @@ class WorkerServicer(gpuflow_pb2_grpc.WorkerServicer):
     def AssignTask(self, request, context):
         task_id = request.task_id
         logger.info(f"Worker {self.node_id} received AssignTask request for {task_id}")
+
+        sync = get_worker_sync(self.node_id)
+        if request.lamport_time:
+            sync.on_receive(
+                int(request.lamport_time),
+                vector_from_proto(request.vector_clock),
+            )
+        log_synchronized_event(
+            EventType.TASK_ASSIGNED,
+            sync=sync,
+            source="SCHEDULER",
+            destination="WORKER",
+            job_id=task_id,
+            node_id=self.node_id,
+            message=f"Task {task_id} assigned to worker {self.node_id}",
+        )
 
         with self._lock:
             if self._active_task_id is not None:

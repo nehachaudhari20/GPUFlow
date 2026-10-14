@@ -22,6 +22,7 @@ class EventType(str, Enum):
     TASK_FAILED = "TASK_FAILED"
     RESOURCE_RELEASED = "RESOURCE_RELEASED"
     PEER_MESSAGE_SENT = "PEER_MESSAGE_SENT"
+    HEARTBEAT_SENT = "HEARTBEAT_SENT"
 
 class SystemEvent(BaseModel):
     event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -33,6 +34,8 @@ class SystemEvent(BaseModel):
     node_id: Optional[str] = None
     message: str = ""
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    lamport_timestamp: Optional[int] = None
+    vector_clock: Optional[Dict[str, int]] = None
 
 class EventManager:
     def __init__(self):

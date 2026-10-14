@@ -16,7 +16,8 @@ from backend.app.scheduler.scheduling_decision import (
 from backend.app.scheduler.scheduling_policy import SchedulingPolicy
 from backend.app.services.workload_service import WorkloadService
 from backend.app.communication.worker_client import WorkerClient
-from backend.app.events.event_manager import event_manager, EventType
+from backend.app.events.event_manager import EventType
+from backend.app.synchronization.event_sync import log_synchronized_event
 import logging
 
 logger = logging.getLogger(__name__)
@@ -129,15 +130,15 @@ class Scheduler:
             f"(score={best.scores.total})"
         )
 
-        event_manager.log_event(
-            event_type=EventType.NODE_SELECTED,
+        log_synchronized_event(
+            EventType.NODE_SELECTED,
             source="SCHEDULER",
             job_id=workload.job_id,
             node_id=best.node_id,
             message=f"Node {best.node_id} selected with score {best.scores.total}",
         )
-        event_manager.log_event(
-            event_type=EventType.RESOURCE_ALLOCATED,
+        log_synchronized_event(
+            EventType.RESOURCE_ALLOCATED,
             source="SCHEDULER",
             job_id=workload.job_id,
             node_id=best.node_id,

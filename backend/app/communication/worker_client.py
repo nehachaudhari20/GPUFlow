@@ -8,6 +8,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "proto
 import gpuflow_pb2
 import gpuflow_pb2_grpc
 from backend.app.models.workload import Workload
+from backend.app.synchronization.process_sync import get_coordinator_sync
+from backend.app.synchronization.grpc_metadata import apply_vector_to_proto
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,8 @@ class WorkerClient:
         try:
             with grpc.insecure_channel(self.target) as channel:
                 stub = gpuflow_pb2_grpc.WorkerStub(channel)
+                coord = get_coordinator_sync()
+                lamport, vector = coord.on_send()
                 req = gpuflow_pb2.AssignTaskRequest(
                     task_id=workload.job_id,
                     workload_type=workload.type.value,
@@ -32,7 +36,9 @@ class WorkerClient:
                     gpu_memory_req=workload.gpu_memory_required,
                     ram_req=workload.ram_required,
                     estimated_duration=workload.estimated_duration,
+                    lamport_time=lamport,
                 )
+                apply_vector_to_proto(req.vector_clock, vector)
                 response = stub.AssignTask(req, timeout=self.timeout)
                 return response.success
         except Exception as e:

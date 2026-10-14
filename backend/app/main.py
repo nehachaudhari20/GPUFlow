@@ -11,6 +11,7 @@ from backend.app.api.workloads import router as workloads_router
 from backend.app.api.scheduler import router as scheduler_router
 from backend.app.api.events import router as events_router
 from backend.app.api.admin import router as admin_router
+from backend.app.api.fa2_synchronization import router as fa2_router
 from backend.app.api.websocket import router as ws_router, setup_event_broadcaster
 import asyncio
 
@@ -21,6 +22,7 @@ app.include_router(workloads_router)
 app.include_router(scheduler_router)
 app.include_router(events_router)
 app.include_router(admin_router)
+app.include_router(fa2_router)
 app.include_router(ws_router)
 
 

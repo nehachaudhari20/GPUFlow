@@ -19,6 +19,8 @@ from backend.app.config import settings
 from backend.app.core.logging import setup_logging
 from backend.app.worker.worker_server import start_worker_server
 from backend.app.worker.hardware_probe import probe_host_resources
+from backend.app.synchronization.process_sync import get_worker_sync
+from backend.app.synchronization.grpc_metadata import apply_vector_to_proto
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +59,8 @@ class WorkerDaemon:
         self.gpu_total = resources.gpu_total
         self.gpu_memory_total = resources.gpu_memory_total_gb
         self.resource_source = resources.source
+        self._cristian_prev_request_ms: float | None = None
+        self._cristian_prev_response_ms: float | None = None
 
     def start(self, scheduler_address: str | None = None):
         address = scheduler_address or settings.scheduler_address
@@ -88,6 +92,8 @@ class WorkerDaemon:
 
     def _register_with_scheduler(self) -> bool:
         try:
+            sync = get_worker_sync(self.node_id)
+            lamport, vector = sync.on_send()
             req = gpuflow_pb2.RegisterNodeRequest(
                 node_id=self.node_id,
                 hostname=self.hostname,
@@ -96,7 +102,9 @@ class WorkerDaemon:
                 gpu_total=self.gpu_total,
                 gpu_memory_total=self.gpu_memory_total,
                 grpc_port=self.advertise_port,
+                lamport_time=lamport,
             )
+            apply_vector_to_proto(req.vector_clock, vector)
             res = self.stub.RegisterNode(req)
             if res.success:
                 label = self.worker_name or self.hostname
@@ -130,17 +138,40 @@ class WorkerDaemon:
                     gpu_avail = 0.0
                     gpu_mem_avail = 0.0
 
+                sync = get_worker_sync(self.node_id)
+                client_wall_ms = int(time.time() * 1000)
+                lamport, vector = sync.on_send()
                 req = gpuflow_pb2.HeartbeatRequest(
                     node_id=self.node_id,
                     status="ONLINE",
-                    timestamp=int(time.time() * 1000),
+                    timestamp=client_wall_ms,
                     cpu_available=cpu_avail,
                     ram_available=ram_avail,
                     gpu_available=gpu_avail,
                     gpu_memory_available=gpu_mem_avail,
                     grpc_port=self.advertise_port,
+                    lamport_time=lamport,
+                    client_wall_time_ms=client_wall_ms,
                 )
-                self.stub.SendHeartbeat(req)
+                apply_vector_to_proto(req.vector_clock, vector)
+                if (
+                    self._cristian_prev_request_ms is not None
+                    and self._cristian_prev_response_ms is not None
+                ):
+                    req.cristian_client_request_ms = int(self._cristian_prev_request_ms)
+                    req.cristian_client_response_ms = int(
+                        self._cristian_prev_response_ms
+                    )
+                send_started = time.time() * 1000
+                resp = self.stub.SendHeartbeat(req)
+                send_finished = time.time() * 1000
+                self._cristian_prev_request_ms = send_started
+                self._cristian_prev_response_ms = send_finished
+                if resp.lamport_time:
+                    sync.on_receive(
+                        int(resp.lamport_time),
+                        {k: int(v) for k, v in resp.vector_clock.items()},
+                    )
             except Exception as e:
                 logger.error(f"Failed to send heartbeat: {e}")
                 self._ensure_scheduler_channel()

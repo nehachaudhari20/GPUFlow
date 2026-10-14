@@ -6,6 +6,10 @@ from backend.app.models.worker import NodeFailureEvent, WorkerNode
 from backend.app.config import settings
 from backend.app.scheduler.resource_manager import resource_manager
 from backend.app.events.event_manager import event_manager, EventType
+from backend.app.synchronization.event_sync import (
+    log_event_with_clocks,
+    log_synchronized_event,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,25 +21,43 @@ class ClusterState:
         self.failure_events: List[NodeFailureEvent] = []
         self.lock = threading.Lock()
 
-    def register_node(self, node: WorkerNode):
+    def register_node(
+        self,
+        node: WorkerNode,
+        lamport: Optional[int] = None,
+        vector: Optional[Dict[str, int]] = None,
+    ):
         with self.lock:
             self.nodes[node.node_id] = node
             logger.info(f"Registered node {node.node_id} ({node.hostname})")
         resource_manager.register_node(node)
-        event_manager.log_event(
-            event_type=EventType.NODE_REGISTERED,
-            source="WORKER",
-            destination="SCHEDULER",
-            node_id=node.node_id,
-            message=f"Node {node.node_id} ({node.hostname}) registered",
-            metadata={
-                "cpu_total": node.cpu_total,
-                "ram_total": node.ram_total,
-                "gpu_total": node.gpu_total,
-                "gpu_memory_total": node.gpu_memory_total,
-                "grpc_port": node.grpc_port,
-            },
-        )
+        meta = {
+            "cpu_total": node.cpu_total,
+            "ram_total": node.ram_total,
+            "gpu_total": node.gpu_total,
+            "gpu_memory_total": node.gpu_memory_total,
+            "grpc_port": node.grpc_port,
+        }
+        if lamport is not None and vector is not None:
+            log_event_with_clocks(
+                EventType.NODE_REGISTERED,
+                lamport,
+                vector,
+                source="WORKER",
+                destination="SCHEDULER",
+                node_id=node.node_id,
+                message=f"Node {node.node_id} ({node.hostname}) registered",
+                metadata=meta,
+            )
+        else:
+            log_synchronized_event(
+                EventType.NODE_REGISTERED,
+                source="WORKER",
+                destination="SCHEDULER",
+                node_id=node.node_id,
+                message=f"Node {node.node_id} ({node.hostname}) registered",
+                metadata=meta,
+            )
 
     def update_heartbeat(
         self,
@@ -47,6 +69,8 @@ class ClusterState:
         gpu_avail: float,
         gpu_mem_avail: float,
         grpc_port: int = 0,
+        lamport: Optional[int] = None,
+        vector: Optional[Dict[str, int]] = None,
     ):
         with self.lock:
             if node_id not in self.nodes:
@@ -62,13 +86,24 @@ class ClusterState:
             node_id, status, cpu_avail, ram_avail, gpu_avail, gpu_mem_avail
         )
         self.sync_node_resources(node_id)
-        event_manager.log_event(
-            event_type=EventType.HEARTBEAT_RECEIVED,
-            source="WORKER",
-            destination="SCHEDULER",
-            node_id=node_id,
-            message=f"Heartbeat received from {node_id}",
-        )
+        if lamport is not None and vector is not None:
+            log_event_with_clocks(
+                EventType.HEARTBEAT_RECEIVED,
+                lamport,
+                vector,
+                source="WORKER",
+                destination="SCHEDULER",
+                node_id=node_id,
+                message=f"Heartbeat received from {node_id}",
+            )
+        else:
+            log_synchronized_event(
+                EventType.HEARTBEAT_RECEIVED,
+                source="WORKER",
+                destination="SCHEDULER",
+                node_id=node_id,
+                message=f"Heartbeat received from {node_id}",
+            )
 
     def check_timeouts(self):
         offline_ids: List[str] = []
@@ -89,12 +124,12 @@ class ClusterState:
                         logger.warning(
                             f"Node {node_id} missed heartbeat and marked OFFLINE"
                         )
-                        event_manager.log_event(
-                            event_type=EventType.NODE_OFFLINE,
+                        log_synchronized_event(
+                            EventType.NODE_OFFLINE,
                             source="SCHEDULER",
                             node_id=node_id,
                             message=f"Node {node_id} missed heartbeat and marked OFFLINE",
-                            metadata={"last_heartbeat": node.last_heartbeat}
+                            metadata={"last_heartbeat": node.last_heartbeat},
                         )
 
         for node_id in offline_ids:
