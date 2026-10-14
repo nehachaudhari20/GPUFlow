@@ -1,6 +1,6 @@
 # Custom GPU-Aware Scheduling Algorithm
 
-GPUFlow avoids generic clustering architectures (like Kubernetes or Celery) in favor of a specialized heuristic algorithm bridging AI workload constraints with heterogeneous clustered hardware.
+CPUFlow avoids generic clustering architectures (like Kubernetes or Celery) in favor of a specialized heuristic algorithm bridging AI workload constraints with heterogeneous clustered hardware.
 
 ## Lifecycle 
 
@@ -28,4 +28,4 @@ The scheduler employs a multi-criteria scoring algorithm to optimize placement b
 - `10% Node Health`
 - `10% Load Balance`
 
-*Implementation Details:* By multiplying scaled availability components by predetermined constants, GPUFlow natively disperses compute-heavy processing away from stressed nodes, significantly improving general availability uptime without demanding a global state sync.
+*Implementation Details:* By multiplying scaled availability components by predetermined constants, CPUFlow natively disperses compute-heavy processing away from stressed nodes, significantly improving general availability uptime without demanding a global state sync.

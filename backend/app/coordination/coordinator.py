@@ -40,6 +40,13 @@ class CoordinationService:
         grpc_port: int,
     ) -> None:
         with self._lock:
+            stale = [
+                mid
+                for mid, m in self._members.items()
+                if m.get("hostname") == hostname and mid != node_id
+            ]
+            for mid in stale:
+                self._members.pop(mid, None)
             self._members[node_id] = {
                 "node_id": node_id,
                 "election_id": election_id,
@@ -47,11 +54,16 @@ class CoordinationService:
                 "grpc_port": grpc_port,
                 "registered_at": time.time(),
             }
+        from backend.app.replication.replication_manager import replication_manager
+
+        replication_manager.register_replica(node_id, hostname=hostname, role="follower")
 
     def report_coordinator(
         self, node_id: str, election_id: int, election_record: Optional[Dict[str, Any]] = None
     ) -> None:
         with self._lock:
+            if node_id not in self._members:
+                return
             same = (
                 node_id == self._coordinator_node_id
                 and election_id == self._coordinator_election_id
@@ -158,6 +170,51 @@ class CoordinationService:
         with self._lock:
             self._membership_epoch += 1
 
+    def drop_member(self, node_id: str, reason: str = "member_failure") -> Optional[Dict[str, Any]]:
+        with self._lock:
+            member = self._members.pop(node_id, None)
+            was_coord = self._coordinator_node_id == node_id
+            self._membership_epoch += 1
+        if member is None:
+            return None
+        from backend.app.replication.replication_manager import replication_manager
+
+        replication_manager.mark_replica_status(node_id, "STALE")
+        if was_coord:
+            return self.elect_highest(reason="coordinator_failure")
+        return self.get_leader()
+
+    def elect_highest(self, reason: str = "re_election") -> Dict[str, Any]:
+        with self._lock:
+            if not self._members:
+                self._coordinator_node_id = None
+                self._coordinator_election_id = -1
+                winner = None
+                participating: List[str] = []
+            else:
+                winner = max(self._members.values(), key=lambda m: int(m["election_id"]))
+                self._coordinator_node_id = winner["node_id"]
+                self._coordinator_election_id = int(winner["election_id"])
+                participating = list(self._members.keys())
+        if winner:
+            self.ingest_election_report(
+                {
+                    "election_id": f"failover-{winner['node_id']}-{int(time.time())}",
+                    "initiator_node_id": winner["node_id"],
+                    "participating_nodes": participating,
+                    "elected_coordinator_node_id": winner["node_id"],
+                    "start_timestamp": time.time(),
+                    "end_timestamp": time.time(),
+                    "duration_ms": 0.0,
+                    "reason": reason,
+                    "events": [
+                        {"type": "ELECTION", "detail": reason},
+                        {"type": "COORDINATOR", "node_id": winner["node_id"]},
+                    ],
+                }
+            )
+        return self.get_leader()
+
     def check_beacons(self) -> None:
         self._beacons.check_timeouts()
 
@@ -170,6 +227,9 @@ class CoordinationService:
         self._beacons.clear()
         self._deadlock.clear()
         distributed_lock_coordinator.clear()
+        from backend.app.coordination.ra_demo import ra_demo
+
+        ra_demo.clear()
 
 
 coordination_service = CoordinationService()

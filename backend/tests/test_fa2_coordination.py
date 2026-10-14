@@ -6,6 +6,7 @@ from backend.app.coordination.bully_election import BullyElectionManager, Electi
 from backend.app.coordination.deadlock_detector import DeadlockDetector
 from backend.app.coordination.distributed_lock import RicartAgrawalaLockManager
 from backend.app.coordination.coordinator import CoordinationService
+from backend.app.coordination.ra_demo import RicartAgrawalaDemo
 
 
 def test_highest_id_election_wins():
@@ -105,6 +106,41 @@ def test_no_deadlock():
 def test_coordination_service_leader():
     svc = CoordinationService()
     svc.register_member("w1", 1, "h1", 50052)
+    svc.register_member("w2", 2, "h2", 50052)
     svc.report_coordinator("w2", 2)
     leader = svc.get_leader()
     assert leader["coordinator_node_id"] == "w2"
+
+
+def test_drop_coordinator_elects_next_highest():
+    svc = CoordinationService()
+    svc.register_member("w1", 1, "worker-1", 1)
+    svc.register_member("w2", 2, "worker-2", 1)
+    svc.register_member("w3", 3, "worker-3", 1)
+    svc.report_coordinator("w3", 3)
+    leader = svc.drop_member("w3", reason="simulated_failure")
+    assert leader["coordinator_node_id"] == "w2"
+    assert leader["coordinator_election_id"] == 2
+    assert all(m["node_id"] != "w3" for m in svc.list_members())
+
+
+def test_ra_demo_spreads_mutex_across_workers():
+    demo = RicartAgrawalaDemo()
+    demo.sync_members(
+        [
+            {"node_id": "n1", "hostname": "worker-1"},
+            {"node_id": "n2", "hostname": "worker-2"},
+            {"node_id": "n3", "hostname": "worker-3"},
+        ]
+    )
+    first = demo.request("n1")
+    assert first["owner"] == "n1"
+    second = demo.request("n2")
+    assert second["owner"] == "n1"
+    n2 = next(n for n in second["nodes"] if n["node_id"] == "n2")
+    assert "n1" in n2["outstanding_replies"]
+    demo.release("n1")
+    after = demo.snapshot()
+    assert after["owner"] == "n2"
+    demo.release("n2")
+    assert demo.snapshot()["owner"] is None

@@ -1,6 +1,6 @@
 # Documentation of Distributed Communication Layers
 
-Unit 2 distributed concepts are highly visible within how GPUFlow couples distinct components into a cohesive platform.
+Unit 2 distributed concepts are highly visible within how CPUFlow couples distinct components into a cohesive platform.
 
 ### RPC through gRPC
 Remote Procedure Calls provide the foundational fabric for scheduler control plane operations. Defined using **Protocol Buffers**, strictly defined structures are compiled to Python endpoints to manage interaction between a central **Scheduler Servicer** and distributed **Worker Servicers**. Example calls include `AssignTask`, `SendHeartbeat` and `ReportTaskStatus`.

@@ -1,33 +1,35 @@
 import { useState } from 'react';
+import type { WorkerNode, Workload } from '../../types';
 import Fa2SyncPage from './Fa2SyncPage';
 import Fa2CoordinationPage from './Fa2CoordinationPage';
-import Fa2GlobalStatePage from './Fa2GlobalStatePage';
+import Fa2MutexPage from './Fa2MutexPage';
 import Fa2RecoveryPage from './Fa2RecoveryPage';
-import Fa2StoragePage from './Fa2StoragePage';
-import Fa2FunctionsPage from './Fa2FunctionsPage';
+import Fa2ReplicaPage from './Fa2ReplicaPage';
 
 const tabs = [
-  { id: 'sync', label: 'Synchronization' },
-  { id: 'coord', label: 'Coordination' },
-  { id: 'global', label: 'Global State' },
-  { id: 'recovery', label: 'Fault Recovery' },
-  { id: 'storage', label: 'Distributed Storage' },
-  { id: 'functions', label: 'Functions & Scaling' },
+  { id: 'sync', label: 'Clocks' },
+  { id: 'bully', label: 'Bully election' },
+  { id: 'mutex', label: 'Mutual exclusion' },
+  { id: 'recovery', label: 'Failure & retry' },
+  { id: 'replica', label: 'Replicas' },
 ] as const;
 
 type Fa2Tab = (typeof tabs)[number]['id'];
 
-export default function Fa2Hub() {
+export default function Fa2Hub({
+  nodes,
+  workloads,
+  onRefresh,
+}: {
+  nodes: WorkerNode[];
+  workloads: Workload[];
+  onRefresh?: () => void;
+}) {
   const [tab, setTab] = useState<Fa2Tab>('sync');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h2 className="text-2xl font-bold">FA2 Distributed Systems</h2>
-        <p className="text-sm text-slate-400">
-          CPU-only cluster — clocks, coordination, recovery, storage, and scaling from live backend APIs
-        </p>
-      </div>
+      <h2 className="text-2xl font-bold">FA2</h2>
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button
@@ -43,12 +45,13 @@ export default function Fa2Hub() {
           </button>
         ))}
       </div>
-      {tab === 'sync' && <Fa2SyncPage />}
-      {tab === 'coord' && <Fa2CoordinationPage />}
-      {tab === 'global' && <Fa2GlobalStatePage />}
-      {tab === 'recovery' && <Fa2RecoveryPage />}
-      {tab === 'storage' && <Fa2StoragePage />}
-      {tab === 'functions' && <Fa2FunctionsPage />}
+      {tab === 'sync' && <Fa2SyncPage nodes={nodes} />}
+      {tab === 'bully' && <Fa2CoordinationPage nodes={nodes} />}
+      {tab === 'mutex' && <Fa2MutexPage nodes={nodes} />}
+      {tab === 'recovery' && (
+        <Fa2RecoveryPage nodes={nodes} workloads={workloads} onChanged={onRefresh} />
+      )}
+      {tab === 'replica' && <Fa2ReplicaPage />}
     </div>
   );
 }

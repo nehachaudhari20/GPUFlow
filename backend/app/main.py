@@ -20,7 +20,7 @@ import asyncio
 
 setup_logging()
 
-app = FastAPI(title="GPUFlow", description="Distributed GPU-Aware Workload Scheduling")
+app = FastAPI(title="CPUFlow", description="Distributed CPU-Aware Workload Scheduling")
 app.include_router(workloads_router)
 app.include_router(scheduler_router)
 app.include_router(events_router)
@@ -60,7 +60,7 @@ def startup_event():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "GPUFlow Backend", "version": "1.0.0"}
+    return {"status": "healthy", "service": "CPUFlow Backend", "version": "1.0.0"}
 
 
 @app.get("/nodes")

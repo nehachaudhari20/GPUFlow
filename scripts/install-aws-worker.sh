@@ -11,7 +11,7 @@ sudo chown "$USER:$USER" "$INSTALL_DIR"
 if [[ -n "$REPO_URL" ]]; then
   git clone "$REPO_URL" "$INSTALL_DIR"
 else
-  echo "Copy GPUFlow project to $INSTALL_DIR (git clone or scp), then re-run."
+  echo "Copy CPUFlow project to $INSTALL_DIR (git clone or scp), then re-run."
   exit 1
 fi
 

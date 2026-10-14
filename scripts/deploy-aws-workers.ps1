@@ -1,4 +1,4 @@
-# Deploy GPUFlow workers to AWS EC2 (Amazon Linux / ec2-user)
+# Deploy CPUFlow workers to AWS EC2 (Amazon Linux / ec2-user)
 param(
     [string]$KeyPath = "$env:USERPROFILE\.ssh\gpuflow.pem",
     [string]$SchedulerIp = "117.198.136.17",
@@ -14,7 +14,7 @@ $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Pa
 $RemoteDir = "/opt/gpuflow"
 $StagingTar = Join-Path $env:TEMP "gpuflow-deploy.tar.gz"
 
-Write-Host "==> GPUFlow AWS worker deploy" -ForegroundColor Cyan
+Write-Host "==> CPUFlow AWS worker deploy" -ForegroundColor Cyan
 Write-Host "    Project: $ProjectRoot"
 Write-Host "    Key:     $KeyPath"
 Write-Host "    Scheduler: ${SchedulerIp}:50051"

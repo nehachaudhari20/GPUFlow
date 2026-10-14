@@ -20,6 +20,7 @@ class ClusterState:
         self.nodes: Dict[str, WorkerNode] = {}
         self.failure_events: List[NodeFailureEvent] = []
         self.lock = threading.Lock()
+        self._quarantine_until: Dict[str, float] = {}
 
     def register_node(
         self,
@@ -76,6 +77,15 @@ class ClusterState:
             if node_id not in self.nodes:
                 logger.warning(f"Heartbeat received from unknown node {node_id}")
                 return
+            until = self._quarantine_until.get(node_id, 0)
+            if until > time.time():
+                logger.info(
+                    "Ignoring heartbeat from quarantined node %s (%.0fs left)",
+                    node_id,
+                    until - time.time(),
+                )
+                return
+            self._quarantine_until.pop(node_id, None)
             node = self.nodes[node_id]
             node.status = status
             node.last_heartbeat = timestamp
@@ -135,6 +145,12 @@ class ClusterState:
         for node_id in offline_ids:
             resource_manager.mark_offline(node_id)
             try:
+                from backend.app.coordination.coordinator import coordination_service
+
+                coordination_service.drop_member(node_id, reason="heartbeat_timeout")
+            except Exception as exc:
+                logger.warning("Coordination drop failed for %s: %s", node_id, exc)
+            try:
                 from backend.app.recovery.recovery_manager import recovery_manager
                 from backend.app.services.workload_service import workload_service
                 from backend.app.scheduler.scheduler import scheduler
@@ -144,6 +160,14 @@ class ClusterState:
                 )
             except Exception as exc:
                 logger.warning("Recovery hook failed for %s: %s", node_id, exc)
+
+    def quarantine(self, node_id: str, duration_s: float = 45.0) -> None:
+        """Treat a live worker as failed for duration_s (ignore heartbeats)."""
+        with self.lock:
+            self._quarantine_until[node_id] = time.time() + duration_s
+            node = self.nodes.get(node_id)
+            if node is not None:
+                node.status = "OFFLINE"
 
     def sync_node_resources(self, node_id: str):
         view = resource_manager.get_node_resources(node_id)
@@ -184,6 +208,7 @@ class ClusterState:
         with self.lock:
             self.nodes.clear()
             self.failure_events.clear()
+            self._quarantine_until.clear()
 
 
 cluster_state = ClusterState()

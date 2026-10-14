@@ -211,6 +211,25 @@ class Scheduler:
                     WorkloadStatus.RUNNING,
                     assigned_node=decision.selected_node,
                 )
+                try:
+                    from backend.app.coordination.coordinator import coordination_service
+                    from backend.app.coordination.ra_demo import ra_demo
+                    from backend.app.replication.replication_manager import (
+                        replication_manager,
+                    )
+
+                    ra_demo.sync_members(coordination_service.list_members())
+                    ra_demo.pulse(decision.selected_node, workload.job_id)
+                    replication_manager.replicate(
+                        {
+                            "type": "job_scheduled",
+                            "job_id": workload.job_id,
+                            "status": "RUNNING",
+                            "node_id": decision.selected_node,
+                        }
+                    )
+                except Exception:
+                    logger.debug("FA2 schedule hooks failed", exc_info=True)
             else:
                 requirements = ResourceRequirements(
                     cpu=workload.cpu_required,

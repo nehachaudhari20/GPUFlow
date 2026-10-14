@@ -1,5 +1,5 @@
 [Unit]
-Description=GPUFlow Worker Node
+Description=CPUFlow Worker Node
 After=network-online.target
 Wants=network-online.target
 

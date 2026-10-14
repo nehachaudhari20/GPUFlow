@@ -10,7 +10,7 @@
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
-Write-Host "=== GPUFlow: laptop scheduler + EC2 workers ===" -ForegroundColor Cyan
+Write-Host "=== CPUFlow: laptop scheduler + EC2 workers ===" -ForegroundColor Cyan
 Write-Host ""
 
 # 1. Control plane

@@ -1,8 +1,8 @@
 # FA1 Syllabus Mapping
 
-This document maps GPUFlow features directly to the FA1 Distributed Systems syllabus (Units 1 & 2).
+This document maps CPUFlow features directly to the FA1 Distributed Systems syllabus (Units 1 & 2).
 
-| Syllabus Concept | How it is implemented in GPUFlow | Location in Codebase | Viva Demonstration Strategy |
+| Syllabus Concept | How it is implemented in CPUFlow | Location in Codebase | Viva Demonstration Strategy |
 | :--- | :--- | :--- | :--- |
 | **Unit 1: Distributed Architecture** | Master-Worker split; Scheduler coordinates autonomous nodes | `backend/app/scheduler/`, `backend/app/worker/` | Open the Cluster tab to view all connected node representations |
 | **Unit 1: Middleware** | Protocol Buffers & gRPC bridge scheduler & workers | `protobufs/gpuflow.proto` | Show protobuf schemas and compiled Python gRPC interfaces |

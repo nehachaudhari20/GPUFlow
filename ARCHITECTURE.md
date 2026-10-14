@@ -1,4 +1,4 @@
-# GPUFlow Architecture
+# CPUFlow Architecture
 
 The architecture illustrates a client-server distributed model paired with direct worker-to-worker side-channels.
 

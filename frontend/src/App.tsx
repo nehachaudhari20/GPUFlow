@@ -49,7 +49,7 @@ export default function App() {
     <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
       <nav className="w-64 border-r border-slate-800 flex flex-col shrink-0">
         <div className="p-6 border-b border-slate-800">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">GPUFlow</h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">CPUFlow</h1>
           <p className="text-xs text-slate-500 mt-1">FA1 + FA2 Distributed Platform</p>
         </div>
         <div className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -119,7 +119,7 @@ export default function App() {
           <SchedulerView workloads={workloads} nodes={nodes} refresh={refresh} cpuOnlyMode={cpuOnlyMode} />
         )}
         {activeTab === 'events' && <EventTimeline events={events} />}
-        {activeTab === 'fa2' && <Fa2Hub />}
+        {activeTab === 'fa2' && <Fa2Hub nodes={nodes} workloads={workloads} onRefresh={refresh} />}
       </main>
     </div>
   );

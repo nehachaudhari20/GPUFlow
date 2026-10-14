@@ -1,4 +1,4 @@
-# GPUFlow Project Specification
+# CPUFlow Project Specification
 
 ## Problem Statement
 AI workloads are resource-intensive and require efficient scheduling across distributed GPU clusters.

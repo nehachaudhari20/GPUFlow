@@ -9,7 +9,7 @@ $Workers = @(
     @{ Ip = "3.111.41.226";  LocalPort = 15053; Name = "gpuflow-2" }
 )
 
-Write-Host "Starting GPUFlow SSH tunnels..."
+Write-Host "Starting CPUFlow SSH tunnels..."
 foreach ($w in $Workers) {
     $args = @(
         "-i", $Key, "-N", "-o", "ServerAliveInterval=30", "-o", "ExitOnForwardFailure=yes",

@@ -178,6 +178,18 @@ class RicartAgrawalaLockManager:
         with self._lock:
             return self._owner, self._owner_resource
 
+    def snapshot(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "node_id": self.node_id,
+                "in_critical_section": self._in_critical_section,
+                "owner": self._owner,
+                "resource": self._owner_resource,
+                "deferred_replies": sorted(self._deferred_replies),
+                "replies_received": sorted(self._replies_received),
+                "outstanding_replies": sorted(self._outstanding_replies),
+            }
+
 
 class DistributedLockCoordinator:
     """Scheduler-side aggregate view of lock state across workers (prototype ledger)."""

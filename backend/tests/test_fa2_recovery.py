@@ -25,6 +25,8 @@ def test_replication_sequence_monotonic():
     r2 = rep.replicate({"b": 2})
     assert r2["sequence"] > r1["sequence"]
     assert not rep.apply_if_newer(1, {"stale": True})
+    rows = rep.list_replicas()
+    assert any(r["replica_id"] == "primary" and r["last_sequence"] == r2["sequence"] for r in rows)
 
 
 def test_recovery_attempt_tracking():

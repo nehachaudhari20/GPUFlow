@@ -4,9 +4,16 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 
+from pydantic import BaseModel
+
 from backend.app.config import settings
 from backend.app.coordination.coordinator import coordination_service
 from backend.app.coordination.distributed_lock import distributed_lock_coordinator
+from backend.app.coordination.ra_demo import ra_demo
+
+
+class LockAction(BaseModel):
+    node_id: str
 
 router = APIRouter(prefix="/fa2/coordination", tags=["FA2 Coordination"])
 
@@ -38,7 +45,29 @@ def list_members() -> Dict[str, Any]:
 
 @router.get("/locks")
 def list_locks() -> Dict[str, Any]:
-    return distributed_lock_coordinator.snapshot()
+    ra_demo.sync_members(coordination_service.list_members())
+    ledger = distributed_lock_coordinator.snapshot()
+    return {**ledger, "demo": ra_demo.snapshot()}
+
+
+@router.post("/locks/request")
+def request_lock(body: LockAction) -> Dict[str, Any]:
+    _dev_only()
+    ra_demo.sync_members(coordination_service.list_members())
+    try:
+        return ra_demo.request(body.node_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/locks/release")
+def release_lock(body: LockAction) -> Dict[str, Any]:
+    _dev_only()
+    ra_demo.sync_members(coordination_service.list_members())
+    try:
+        return ra_demo.release(body.node_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/beacons")

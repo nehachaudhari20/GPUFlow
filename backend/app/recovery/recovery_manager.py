@@ -155,10 +155,20 @@ class RecoveryManager:
                 continue
             wl = workload_service.get_workload(job_id)
             if wl is None or wl.status != WorkloadStatus.QUEUED:
+                if wl is not None and wl.status != WorkloadStatus.QUEUED:
+                    self._retry_meta.pop(job_id, None)
                 continue
             decision = scheduler.schedule_and_update(workload_service, wl)
             if decision.allocation_success and decision.selected_node:
                 self.begin_attempt(job_id, decision.selected_node)
+                self._record_history(
+                    job_id,
+                    "TASK_REASSIGNED",
+                    meta.get("previous_node_id", ""),
+                    decision.selected_node,
+                    "retry_dispatch",
+                )
+                self._retry_meta.pop(job_id, None)
                 mig = self._migrations.record(
                     job_id,
                     meta.get("previous_node_id", ""),

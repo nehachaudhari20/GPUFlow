@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 1 adds **Lamport logical clocks**, **vector clocks**, **Cristian-style physical clock offset estimation**, and **monitoring global snapshots** to GPUFlow without changing FA1 scheduling semantics or AWS deployment flows.
+Phase 1 adds **Lamport logical clocks**, **vector clocks**, **Cristian-style physical clock offset estimation**, and **monitoring global snapshots** to CPUFlow without changing FA1 scheduling semantics or AWS deployment flows.
 
 Each **scheduler (coordinator)** and **worker process** owns its own clock state. Timestamps are taken at real execution points (registration, heartbeats, job lifecycle, resource allocation).
 

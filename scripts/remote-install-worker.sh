@@ -5,7 +5,7 @@ set -euo pipefail
 INSTALL_DIR="${INSTALL_DIR:-/opt/gpuflow}"
 WORKER_ENV="${WORKER_ENV:-$INSTALL_DIR/worker.env}"
 
-echo "==> Installing GPUFlow worker in $INSTALL_DIR"
+echo "==> Installing CPUFlow worker in $INSTALL_DIR"
 
 sudo mkdir -p "$INSTALL_DIR"
 sudo chown -R "$USER:$USER" "$INSTALL_DIR"

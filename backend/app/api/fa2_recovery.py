@@ -51,7 +51,29 @@ def simulate_failure_dev(node_id: str) -> Dict[str, Any]:
     from backend.app.scheduler.scheduler import scheduler
     from backend.app.services.workload_service import workload_service
 
+    cluster_state.quarantine(node_id, duration_s=45.0)
+    resource_manager.mark_offline(node_id)
+    from backend.app.coordination.coordinator import coordination_service
+
+    leader = coordination_service.drop_member(node_id, reason="simulated_failure")
     jobs = recovery_manager.on_worker_failure(
         node_id, workload_service, scheduler, cluster_state, resource_manager
     )
-    return {"node_id": node_id, "interrupted_jobs": jobs}
+    recovery_manager.process_retry_queue(workload_service, scheduler)
+    scheduler.schedule_all_queued(workload_service)
+    from backend.app.replication.replication_manager import replication_manager
+
+    replication_manager.replicate(
+        {
+            "type": "worker_failure",
+            "node_id": node_id,
+            "interrupted_jobs": jobs,
+        }
+    )
+    return {
+        "node_id": node_id,
+        "interrupted_jobs": jobs,
+        "node_quarantined_s": 45,
+        "new_coordinator": (leader or {}).get("coordinator_node_id"),
+        "new_coordinator_election_id": (leader or {}).get("coordinator_election_id"),
+    }

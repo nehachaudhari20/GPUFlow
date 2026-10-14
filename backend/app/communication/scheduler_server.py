@@ -52,7 +52,8 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
             gpu_memory_total=request.gpu_memory_total,
             gpu_memory_available=request.gpu_memory_total,
             status="ONLINE",
-            last_heartbeat=time.time()
+            last_heartbeat=time.time(),
+            election_id=int(request.election_id) if request.election_id else 0,
         )
         cluster_state.register_node(node, lamport=lamport, vector=vector)
         election_id = int(request.election_id) if request.election_id else 0
@@ -108,6 +109,12 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
             lamport=lamport,
             vector=vector,
         )
+        live = cluster_state.get_node(request.node_id)
+        if live is not None and live.status == "ONLINE":
+            eid = int(live.election_id or 0)
+            coordination_service.register_member(
+                live.node_id, eid, live.hostname, live.grpc_port
+            )
 
         server_reply_ms = time.time() * 1000.0
         if request.cristian_client_request_ms and request.cristian_client_response_ms:
@@ -208,6 +215,18 @@ class SchedulerServicer(gpuflow_pb2_grpc.SchedulerServicer):
                     cluster_state.sync_node_resources(request.node_id)
                     if status_enum == WorkloadStatus.COMPLETED:
                         scheduler.schedule_next(workload_service)
+                    from backend.app.replication.replication_manager import (
+                        replication_manager,
+                    )
+
+                    replication_manager.replicate(
+                        {
+                            "type": "task_status",
+                            "job_id": request.task_id,
+                            "status": request.status,
+                            "node_id": request.node_id,
+                        }
+                    )
             return gpuflow_pb2.TaskStatusReportResponse(acknowledged=True)
         except Exception as e:
             logger.error(f"Error handling ReportTaskStatus for {request.task_id}: {e}")

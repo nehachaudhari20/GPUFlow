@@ -1,10 +1,10 @@
-# GPUFlow - Distributed GPU-Aware Workload Scheduling Platform
+# CPUFlow - Distributed GPU-Aware Workload Scheduling Platform
 
-GPUFlow is an academic distributed systems prototype exploring resource management, remote invocation, component orchestration, and stream-oriented monitoring across a computing grid. Developed for Distributed Systems **FA1** (scheduling) and **FA2** (clocks, coordination, recovery, storage, UI). FA1 maps workloads to workers via score-based scheduling; FA2 adds `/fa2/*` APIs and the **FA2 Distributed** sidebar in the dashboard.
+CPUFlow is an academic distributed systems prototype exploring resource management, remote invocation, component orchestration, and stream-oriented monitoring across a computing grid. Developed for Distributed Systems **FA1** (scheduling) and **FA2** (clocks, coordination, recovery, storage, UI). FA1 maps workloads to workers via score-based scheduling; FA2 adds `/fa2/*` APIs and the **FA2 Distributed** sidebar in the dashboard.
 
 ## Architecture
 
-At a high-level, GPUFlow acts as a centralized orchestrator maintaining continuous connections to independently running worker node daemons.
+At a high-level, CPUFlow acts as a centralized orchestrator maintaining continuous connections to independently running worker node daemons.
 
 **User → Frontend Dashboard** (React SPA)  
 **Frontend Dashboard → FastAPI** (REST via HTTP/1.1 and live events via WebSockets)  

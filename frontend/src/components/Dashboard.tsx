@@ -22,7 +22,7 @@ export default function Dashboard({ nodes, workloads, resources }: Props) {
     <div className="space-y-6 max-w-7xl mx-auto">
       <h2 className="text-2xl font-bold tracking-tight">Cluster Dashboard</h2>
 
-      <Fa2OverviewStrip />
+      <Fa2OverviewStrip nodes={nodes} />
 
       <div className="grid grid-cols-4 gap-4">
         <MetricCard title="Total Nodes" value={nodes.length} icon={<Server className="text-blue-400" />} />

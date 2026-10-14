@@ -4,7 +4,7 @@ set -euo pipefail
 INSTALL_DIR="${INSTALL_DIR:-/opt/gpuflow}"
 WORKER_ENV="${WORKER_ENV:-$INSTALL_DIR/worker.env}"
 
-echo "==> Slim GPUFlow worker install in $INSTALL_DIR"
+echo "==> Slim CPUFlow worker install in $INSTALL_DIR"
 cd "$INSTALL_DIR"
 
 if [[ ! -f "$WORKER_ENV" ]]; then

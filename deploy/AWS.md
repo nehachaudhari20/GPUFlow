@@ -1,4 +1,4 @@
-# GPUFlow on AWS (CPU-only workers)
+# CPUFlow on AWS (CPU-only workers)
 
 Use this guide when GPU quota is unavailable. Three EC2 workers (`gpuflow-1`, `gpuflow-2`, `gpuflow-3`) run the worker daemon with **real CPU/RAM** and **GPU=0**. The control plane (scheduler + UI + MongoDB) runs on your laptop or a separate EC2 instance.
 

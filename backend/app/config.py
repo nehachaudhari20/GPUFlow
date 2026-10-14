@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    app_name: str = "GPUFlow"
+    app_name: str = "CPUFlow"
     debug: bool = False
 
     heartbeat_interval: int = 5
