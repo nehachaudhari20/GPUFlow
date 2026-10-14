@@ -95,15 +95,19 @@ export default function WorkloadDetails({ jobId, onClose }: Props) {
           {/* Requirements Grid */}
           <div>
             <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Resource Requirements</h4>
-            <div className="grid grid-cols-4 gap-3">
-              <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
-                <span className="text-xs text-slate-500">GPU Required</span>
-                <p className="text-base font-bold text-indigo-400 mt-0.5">{workload.gpu_required}</p>
-              </div>
-              <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
-                <span className="text-xs text-slate-500">VRAM</span>
-                <p className="text-base font-bold text-indigo-400 mt-0.5">{workload.gpu_memory_required} GB</p>
-              </div>
+            <div className={`grid gap-3 ${workload.gpu_required > 0 ? 'grid-cols-4' : 'grid-cols-2'}`}>
+              {workload.gpu_required > 0 && (
+                <>
+                  <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
+                    <span className="text-xs text-slate-500">GPU Required</span>
+                    <p className="text-base font-bold text-indigo-400 mt-0.5">{workload.gpu_required}</p>
+                  </div>
+                  <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
+                    <span className="text-xs text-slate-500">VRAM</span>
+                    <p className="text-base font-bold text-indigo-400 mt-0.5">{workload.gpu_memory_required} GB</p>
+                  </div>
+                </>
+              )}
               <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
                 <span className="text-xs text-slate-500">CPU Cores</span>
                 <p className="text-base font-bold text-blue-400 mt-0.5">{workload.cpu_required}</p>

@@ -6,6 +6,12 @@ services:
     environment:
       - MONGO_URI=mongodb://mongodb:27017/gpuflow
       - GRPC_PORT=50051
+      - CPU_ONLY_MODE=True
+      - SCHEDULE_GPU_WEIGHT=0.0
+      - SCHEDULE_CPU_WEIGHT=0.45
+      - SCHEDULE_RAM_WEIGHT=0.25
+      - SCHEDULE_HEALTH_WEIGHT=0.10
+      - SCHEDULE_LOAD_BALANCE_WEIGHT=0.20
     ports:
       - "8000:8000"
       - "50051:50051"
@@ -31,11 +37,12 @@ services:
       dockerfile: backend/Dockerfile
     hostname: worker-1
     environment:
-      - SIMULATE_GPUS=True
-      - SIMULATED_GPU_COUNT=8.0
-      - SIMULATED_GPU_MEMORY_GB=32.0
+      - SIMULATE_GPUS=False
+      - CPU_ONLY_MODE=True
       - SCHEDULER_ADDRESS=backend:50051
       - WORKER_HOSTNAME=worker-1
+      - WORKER_NAME=worker-1
+      - WORKER_ELECTION_ID=1
     command: ["python", "backend/app/worker/node.py"]
     depends_on:
       - backend
@@ -46,11 +53,12 @@ services:
       dockerfile: backend/Dockerfile
     hostname: worker-2
     environment:
-      - SIMULATE_GPUS=True
-      - SIMULATED_GPU_COUNT=2.0
-      - SIMULATED_GPU_MEMORY_GB=8.0
+      - SIMULATE_GPUS=False
+      - CPU_ONLY_MODE=True
       - SCHEDULER_ADDRESS=backend:50051
       - WORKER_HOSTNAME=worker-2
+      - WORKER_NAME=worker-2
+      - WORKER_ELECTION_ID=2
     command: ["python", "backend/app/worker/node.py"]
     depends_on:
       - backend
@@ -61,11 +69,12 @@ services:
       dockerfile: backend/Dockerfile
     hostname: worker-3
     environment:
-      - SIMULATE_GPUS=True
-      - SIMULATED_GPU_COUNT=1.0
-      - SIMULATED_GPU_MEMORY_GB=4.0
+      - SIMULATE_GPUS=False
+      - CPU_ONLY_MODE=True
       - SCHEDULER_ADDRESS=backend:50051
       - WORKER_HOSTNAME=worker-3
+      - WORKER_NAME=worker-3
+      - WORKER_ELECTION_ID=3
     command: ["python", "backend/app/worker/node.py"]
     depends_on:
       - backend

@@ -32,6 +32,9 @@ export default function Fa2FunctionsPage() {
     <div className="grid gap-4 md:grid-cols-2">
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
         <h3 className="text-sm font-semibold">Serverless-style invoke (allowlist)</h3>
+        <p className="text-xs text-slate-400">
+          Scheduler picks a CPU worker; the function runs on that worker via gRPC <code>InvokeFunction</code>.
+        </p>
         <select value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-xs">
           {(fnList.data?.functions ?? []).map((f) => (
             <option key={f} value={f}>

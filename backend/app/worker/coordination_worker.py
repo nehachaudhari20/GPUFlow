@@ -64,10 +64,16 @@ class WorkerCoordinationRuntime:
                 return False
 
         self.election = BullyElectionManager(node_id, self.election_id, send_message=send)
+
+        def send_reply(target_node: str, request_id: str, timestamp: int) -> None:
+            host, port = self.election._peer_targets().get(target_node, ("", 0))
+            send(host, port, "LOCK_REPLY", f"LOCK_REPLY|{request_id}|{timestamp}")
+
         self.lock_manager = RicartAgrawalaLockManager(
             node_id,
             lamport_provider=sync.lamport.get_time,
             lamport_tick=lambda: sync.on_local_event()[0],
+            send_reply=send_reply,
         )
 
     def update_peers_from_proto(self, peers) -> None:

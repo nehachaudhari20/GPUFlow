@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
-import math
-import subprocess
-import sys
 import time
 import uuid
 from typing import Any, Callable, Dict, List
 
-from backend.app.models.workload import WorkloadCreate, WorkloadType, Priority
+from backend.app.models.workload import (
+    WorkloadCreate,
+    WorkloadStatus,
+    WorkloadType,
+    Priority,
+)
 
 
 FUNCTIONS: Dict[str, Callable[[Dict[str, Any]], Any]] = {}
@@ -63,6 +65,12 @@ _register("summarize_numbers", summarize_numbers)
 _register("calculate_matrix_statistics", calculate_matrix_statistics)
 
 
+def run_allowlisted_function(function_name: str, parameters: Dict[str, Any]) -> Any:
+    if function_name not in FUNCTIONS:
+        raise ValueError("Unknown function")
+    return FUNCTIONS[function_name](parameters)
+
+
 class FunctionInvocationService:
     def __init__(self) -> None:
         self._invocations: Dict[str, Dict[str, Any]] = {}
@@ -95,33 +103,74 @@ class FunctionInvocationService:
             estimated_duration=min(max(timeout_s, 1.0), 120.0),
         )
         wl = workload_service.create_workload(payload, job_id=invocation_id)
-        decision = scheduler.schedule_and_update(workload_service, wl)
+        decision = scheduler.schedule_workload(wl)
         result: Any = None
         error: str | None = None
-        status = "SCHEDULED"
+        status = "QUEUED"
         worker = decision.selected_node
+        executed_on = None
         if not decision.allocation_success:
-            status = "QUEUED"
             error = decision.reason
         else:
-            try:
-                result = self._run_isolated(function_name, parameters, timeout_s)
-                status = "COMPLETED"
-                from backend.app.models.workload import WorkloadStatus
+            from backend.app.communication.worker_client import WorkerClient
+            from backend.app.models.resources import ResourceRequirements
+            from backend.app.scheduler.cluster_state import cluster_state
+            from backend.app.scheduler.resource_manager import resource_manager
 
+            node = cluster_state.get_node(decision.selected_node) if decision.selected_node else None
+            try:
+                workload_service.update_status(
+                    invocation_id, WorkloadStatus.SCHEDULED, assigned_node=decision.selected_node
+                )
+                workload_service.update_status(
+                    invocation_id, WorkloadStatus.RUNNING, assigned_node=decision.selected_node
+                )
+                if node is None or node.grpc_port <= 0:
+                    raise RuntimeError("Selected worker has no reachable gRPC port")
+                client = WorkerClient(node.hostname, node.grpc_port, timeout=max(timeout_s, 5.0))
+                ok, result, err, executed_on = client.invoke_function(
+                    invocation_id, function_name, parameters, timeout_s
+                )
+                if not ok:
+                    raise RuntimeError(err or "Worker function invoke failed")
+                status = "COMPLETED"
                 try:
                     workload_service.update_status(invocation_id, WorkloadStatus.COMPLETED)
                 except Exception:
                     pass
+                reqs = ResourceRequirements(
+                    cpu=cpu_required, ram=ram_required, gpu=0, gpu_memory=0
+                )
+                if decision.selected_node:
+                    resource_manager.release_resources(
+                        decision.selected_node, reqs, invocation_id
+                    )
+                    cluster_state.sync_node_resources(decision.selected_node)
             except Exception as exc:
                 error = str(exc)
                 status = "FAILED"
                 result = None
+                try:
+                    workload_service.update_status(invocation_id, WorkloadStatus.FAILED)
+                except Exception:
+                    pass
+                reqs = ResourceRequirements(
+                    cpu=cpu_required,
+                    ram=ram_required,
+                    gpu=0,
+                    gpu_memory=0,
+                )
+                if decision.selected_node:
+                    resource_manager.release_resources(
+                        decision.selected_node, reqs, invocation_id
+                    )
         record = {
             "invocation_id": invocation_id,
             "function_name": function_name,
             "parameters": parameters,
             "selected_worker": worker,
+            "executed_on": executed_on or worker,
+            "execution_location": "worker" if status == "COMPLETED" else "none",
             "execution_status": status,
             "result": result,
             "execution_duration": time.time() - started,
@@ -129,25 +178,6 @@ class FunctionInvocationService:
         }
         self._invocations[invocation_id] = record
         return record
-
-    def _run_isolated(self, function_name: str, parameters: Dict[str, Any], timeout_s: float) -> Any:
-        code = (
-            "import json, sys\n"
-            "from backend.app.services.function_registry import FUNCTIONS\n"
-            "params=json.loads(sys.argv[1])\n"
-            "print(json.dumps(FUNCTIONS[sys.argv[2]](params)))\n"
-        )
-        proc = subprocess.run(
-            [sys.executable, "-c", code, json.dumps(parameters), function_name],
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            cwd=str(__import__("pathlib").Path(__file__).resolve().parents[2].parent),
-            env={**dict(__import__("os").environ), "PYTHONPATH": str(__import__("pathlib").Path(__file__).resolve().parents[2].parent)},
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(proc.stderr or "function failed")
-        return json.loads(proc.stdout.strip())
 
     def get(self, invocation_id: str) -> Dict[str, Any] | None:
         return self._invocations.get(invocation_id)

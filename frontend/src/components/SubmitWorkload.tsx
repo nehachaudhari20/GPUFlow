@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { WorkloadType, Priority, Workload } from '../types';
-import { PlusCircle, Cpu, Activity, HardDrive, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { PlusCircle, Cpu, HardDrive, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import { apiPost } from '../api';
 
 interface Props {
@@ -21,14 +21,6 @@ async function waitForSchedule(
       return workload;
     }
 
-    const allRes = await fetch('/workloads').then(r => r.json());
-    const hasRunning = (allRes.workloads || []).some(
-      (w: Workload) => w.status === 'RUNNING' && w.job_id !== jobId
-    );
-    if (hasRunning) {
-      return workload;
-    }
-
     await apiPost('/scheduler/run-next').catch(() => undefined);
     refresh();
     await new Promise(r => setTimeout(r, 1500));
@@ -37,14 +29,12 @@ async function waitForSchedule(
   return final;
 }
 
-export default function SubmitWorkload({ onSubmitSuccess, refresh, cpuOnlyMode = false }: Props) {
+export default function SubmitWorkload({ onSubmitSuccess, refresh, cpuOnlyMode = true }: Props) {
   const [name, setName] = useState('');
-  const [type, setType] = useState<WorkloadType>('TRAINING');
+  const [type, setType] = useState<WorkloadType>('BATCH');
   const [priority, setPriority] = useState<Priority>('MEDIUM');
-  const [gpuRequired, setGpuRequired] = useState(cpuOnlyMode ? 0 : 1.0);
-  const [gpuMemoryRequired, setGpuMemoryRequired] = useState(cpuOnlyMode ? 0 : 4.0);
-  const [cpuRequired, setCpuRequired] = useState(cpuOnlyMode ? 1.0 : 2.0);
-  const [ramRequired, setRamRequired] = useState(cpuOnlyMode ? 2.0 : 8.0);
+  const [cpuRequired, setCpuRequired] = useState(1.0);
+  const [ramRequired, setRamRequired] = useState(2.0);
   const [estimatedDuration, setEstimatedDuration] = useState(30);
 
   const [submitting, setSubmitting] = useState(false);
@@ -63,8 +53,8 @@ export default function SubmitWorkload({ onSubmitSuccess, refresh, cpuOnlyMode =
           name,
           type,
           priority,
-          gpu_required: Number(gpuRequired),
-          gpu_memory_required: Number(gpuMemoryRequired),
+          gpu_required: 0,
+          gpu_memory_required: 0,
           cpu_required: Number(cpuRequired),
           ram_required: Number(ramRequired),
           estimated_duration: Number(estimatedDuration),
@@ -96,7 +86,7 @@ export default function SubmitWorkload({ onSubmitSuccess, refresh, cpuOnlyMode =
           Jobs auto-start when the cluster is idle (Priority + FCFS). If another job is already running, new jobs queue automatically.
           {cpuOnlyMode && (
             <span className="block mt-1 text-amber-400/90">
-              CPU-only cluster — set GPU and VRAM to 0. Match CPU/RAM to your EC2 instance size.
+              CPU-only cluster — jobs use CPU cores and RAM only (matched to worker size).
             </span>
           )}
         </p>
@@ -121,7 +111,7 @@ export default function SubmitWorkload({ onSubmitSuccess, refresh, cpuOnlyMode =
             </div>
             <div><span className="text-slate-500">Priority:</span> {submittedJob.priority}</div>
             <div><span className="text-slate-500">Duration:</span> {submittedJob.estimated_duration}s when scheduled</div>
-            <div><span className="text-slate-500">Requirements:</span> {submittedJob.gpu_required} GPU ({submittedJob.gpu_memory_required}GB), {submittedJob.cpu_required} CPU, {submittedJob.ram_required}GB RAM</div>
+            <div><span className="text-slate-500">Requirements:</span> {submittedJob.cpu_required} CPU, {submittedJob.ram_required}GB RAM</div>
           </div>
           <p className="text-xs text-slate-400">
             {submittedJob.status === 'RUNNING'
@@ -226,39 +216,7 @@ export default function SubmitWorkload({ onSubmitSuccess, refresh, cpuOnlyMode =
                 <span className="ml-2 normal-case font-normal text-amber-400/80">(AWS CPU workers)</span>
               )}
             </h4>
-            <div className={`grid gap-4 ${cpuOnlyMode ? 'grid-cols-2' : 'grid-cols-4'}`}>
-              {!cpuOnlyMode && (
-                <>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
-                  <Activity size={13} className="text-purple-400" /> GPU Count
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={gpuRequired}
-                  onChange={(e) => setGpuRequired(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
-                  <Activity size={13} className="text-purple-400" /> VRAM (GB)
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={gpuMemoryRequired}
-                  onChange={(e) => setGpuMemoryRequired(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-                </>
-              )}
-
+            <div className="grid gap-4 grid-cols-2">
               <div>
                 <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
                   <Cpu size={13} className="text-blue-400" /> CPU Cores

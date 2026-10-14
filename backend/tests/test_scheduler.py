@@ -300,6 +300,113 @@ def test_does_not_pick_first_available_node(scheduler, cluster, resources, workl
     assert decision.selected_node != "NODE-FIRST"
 
 
+def test_identical_idle_nodes_spread_concurrent_jobs(
+    scheduler, cluster, resources, workload_service
+):
+    for node_id in ("worker-1", "worker-2", "worker-3"):
+        _register(
+            cluster,
+            resources,
+            node_id,
+            cpu_total=12,
+            cpu_avail=12,
+            ram_total=16,
+            ram_avail=16,
+            gpu_total=0,
+            gpu_avail=0,
+            gpu_mem_total=0,
+            gpu_mem_avail=0,
+        )
+
+    workload_service.create_workload(
+        _workload(
+            name="critical-job",
+            priority=Priority.CRITICAL,
+            gpu_required=0,
+            gpu_memory_required=0,
+            cpu_required=1,
+            ram_required=2,
+        ),
+        job_id="critical",
+    )
+    workload_service.create_workload(
+        _workload(
+            name="high-job",
+            priority=Priority.HIGH,
+            gpu_required=0,
+            gpu_memory_required=0,
+            cpu_required=1,
+            ram_required=2,
+        ),
+        job_id="high",
+    )
+    workload_service.create_workload(
+        _workload(
+            name="medium-job",
+            priority=Priority.MEDIUM,
+            gpu_required=0,
+            gpu_memory_required=0,
+            cpu_required=1,
+            ram_required=2,
+        ),
+        job_id="medium",
+    )
+
+    decisions = scheduler.schedule_all_queued(workload_service)
+
+    assert [d.job_id for d in decisions] == ["critical", "high", "medium"]
+    assigned = {
+        workload_service.get_workload(job_id).assigned_node
+        for job_id in ("critical", "high", "medium")
+    }
+    assert assigned == {"worker-1", "worker-2", "worker-3"}
+
+
+def test_sequential_idle_jobs_round_robin_workers(
+    scheduler, cluster, resources, workload_service
+):
+    for node_id in ("worker-3", "worker-1", "worker-2"):
+        _register(
+            cluster,
+            resources,
+            node_id,
+            cpu_total=12,
+            cpu_avail=12,
+            ram_total=16,
+            ram_avail=16,
+            gpu_total=0,
+            gpu_avail=0,
+            gpu_mem_total=0,
+            gpu_mem_avail=0,
+        )
+
+    first_nodes = []
+    for i in range(3):
+        job_id = f"seq-{i}"
+        workload_service.create_workload(
+            _workload(
+                name=job_id,
+                gpu_required=0,
+                gpu_memory_required=0,
+                cpu_required=1,
+                ram_required=2,
+            ),
+            job_id=job_id,
+        )
+        decision = scheduler.schedule_and_update(
+            workload_service, workload_service.get_workload(job_id)
+        )
+        first_nodes.append(decision.selected_node)
+        workload_service.update_status(job_id, WorkloadStatus.COMPLETED)
+        resources.release_resources(
+            decision.selected_node,
+            ResourceRequirements(cpu=1, ram=2, gpu=0, gpu_memory=0),
+            job_id,
+        )
+
+    assert len(set(first_nodes)) == 3
+
+
 def test_schedule_all_stops_on_blocked_job(scheduler, cluster, resources, workload_service):
     _register(cluster, resources, "NODE-01", gpu_avail=0, gpu_total=1)
     workload_service.create_workload(

@@ -24,6 +24,7 @@ interface Props {
   workloads: Workload[];
   nodes: WorkerNode[];
   refresh: () => void;
+  cpuOnlyMode?: boolean;
 }
 
 function decisionMessage(data: SchedulingDecisionResponse): string {
@@ -36,7 +37,7 @@ function decisionMessage(data: SchedulingDecisionResponse): string {
   return d.reason || 'Job kept in queue (no free worker or insufficient resources)';
 }
 
-export default function Workloads({ workloads, nodes, refresh }: Props) {
+export default function Workloads({ workloads, nodes, refresh, cpuOnlyMode = true }: Props) {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [scheduling, setScheduling] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -126,7 +127,7 @@ export default function Workloads({ workloads, nodes, refresh }: Props) {
           <h2 className="text-2xl font-bold tracking-tight">Workload Queue</h2>
           <p className="text-sm text-slate-400 mt-1">
             Jobs follow <strong className="text-slate-300">Priority + FCFS</strong> automatically.
-            First job auto-starts on submit; queued jobs run via Process Next (one at a time) or Schedule All (parallel on free workers).
+            Jobs auto-start on a free worker at submit. Priority only orders the queue (CRITICAL before HIGH before MEDIUM); each worker runs one job at a time so concurrent jobs spread across worker-1/2/3.
           </p>
           <div className="flex gap-4 mt-2 text-xs font-mono">
             <span className="text-yellow-400">{queuedCount} queued</span>
@@ -210,8 +211,14 @@ export default function Workloads({ workloads, nodes, refresh }: Props) {
                   )}
                 </td>
                 <td className="p-4 text-xs text-slate-400 space-y-0.5">
-                  <div>GPU: {job.gpu_required} ({job.gpu_memory_required}GB)</div>
-                  <div>CPU: {job.cpu_required} | RAM: {job.ram_required}GB</div>
+                  {cpuOnlyMode ? (
+                    <div>CPU: {job.cpu_required} | RAM: {job.ram_required}GB</div>
+                  ) : (
+                    <>
+                      <div>GPU: {job.gpu_required} ({job.gpu_memory_required}GB)</div>
+                      <div>CPU: {job.cpu_required} | RAM: {job.ram_required}GB</div>
+                    </>
+                  )}
                 </td>
                 <td className="p-4 text-xs">
                   {job.assigned_node ? (

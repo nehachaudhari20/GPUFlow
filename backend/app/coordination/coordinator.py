@@ -52,7 +52,11 @@ class CoordinationService:
         self, node_id: str, election_id: int, election_record: Optional[Dict[str, Any]] = None
     ) -> None:
         with self._lock:
-            changed = election_id >= self._coordinator_election_id
+            same = (
+                node_id == self._coordinator_node_id
+                and election_id == self._coordinator_election_id
+            )
+            changed = (not same) and election_id >= self._coordinator_election_id
             if changed:
                 self._coordinator_node_id = node_id
                 self._coordinator_election_id = election_id

@@ -6,7 +6,7 @@ Replicated file storage via worker gRPC `StoreFile` / `RetrieveFile` on distinct
 
 ## Serverless-style functions
 
-Allowlisted registry only (`/fa2/functions`). Invocations run in a subprocess with timeout.
+Allowlisted registry only (`/fa2/functions`). The scheduler reserves a CPU worker, then the worker executes `InvokeFunction` over gRPC. Computation runs **on the worker process**, not on the FastAPI host.
 
 ## Autoscaling
 

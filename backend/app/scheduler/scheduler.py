@@ -38,6 +38,8 @@ class Scheduler:
         self._node_filter = node_filter or NodeFilter()
         self._node_scorer = node_scorer or NodeScorer(self._policy)
         self._lock = threading.Lock()
+        # Spread jobs across identical idle workers (score ties).
+        self._assignment_counts: dict[str, int] = {}
 
     def schedule_workload(self, workload: Workload) -> SchedulingDecision:
         requirements = ResourceRequirements(
@@ -98,13 +100,24 @@ class Scheduler:
                 scheduling_timestamp=time.time(),
             )
 
-        candidate_nodes.sort(key=lambda c: c.scores.total, reverse=True)
+        candidate_nodes.sort(
+            key=lambda c: (
+                -c.scores.total,
+                self._assignment_counts.get(c.node_id, 0),
+                c.hostname or "",
+                c.node_id,
+            )
+        )
         best = candidate_nodes[0]
 
         with self._lock:
             allocated = self._resource_manager.allocate_resources(
                 best.node_id, requirements, workload.job_id
             )
+            if allocated:
+                self._assignment_counts[best.node_id] = (
+                    self._assignment_counts.get(best.node_id, 0) + 1
+                )
 
         if not allocated:
             reason = (

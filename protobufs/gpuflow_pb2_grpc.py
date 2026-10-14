@@ -274,6 +274,11 @@ class WorkerStub:
                 request_serializer=gpuflow__pb2.RetrieveFileRequest.SerializeToString,
                 response_deserializer=gpuflow__pb2.RetrieveFileResponse.FromString,
                 _registered_method=True)
+        self.InvokeFunction = channel.unary_unary(
+                '/gpuflow.Worker/InvokeFunction',
+                request_serializer=gpuflow__pb2.InvokeFunctionRequest.SerializeToString,
+                response_deserializer=gpuflow__pb2.InvokeFunctionResponse.FromString,
+                _registered_method=True)
 
 
 class WorkerServicer:
@@ -322,6 +327,12 @@ class WorkerServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def InvokeFunction(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -359,6 +370,11 @@ def add_WorkerServicer_to_server(servicer, server):
                     servicer.RetrieveFile,
                     request_deserializer=gpuflow__pb2.RetrieveFileRequest.FromString,
                     response_serializer=gpuflow__pb2.RetrieveFileResponse.SerializeToString,
+            ),
+            'InvokeFunction': grpc.unary_unary_rpc_method_handler(
+                    servicer.InvokeFunction,
+                    request_deserializer=gpuflow__pb2.InvokeFunctionRequest.FromString,
+                    response_serializer=gpuflow__pb2.InvokeFunctionResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -550,6 +566,33 @@ class Worker:
             '/gpuflow.Worker/RetrieveFile',
             gpuflow__pb2.RetrieveFileRequest.SerializeToString,
             gpuflow__pb2.RetrieveFileResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def InvokeFunction(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gpuflow.Worker/InvokeFunction',
+            gpuflow__pb2.InvokeFunctionRequest.SerializeToString,
+            gpuflow__pb2.InvokeFunctionResponse.FromString,
             options,
             channel_credentials,
             insecure,

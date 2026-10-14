@@ -18,7 +18,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [resetting, setResetting] = useState(false);
   const { nodes, workloads, resources, events, refresh, queuedCount, runningCount } = useClusterData();
-  const cpuOnlyMode = resources?.cpu_only_mode ?? false;
+  const cpuOnlyMode = resources?.cpu_only_mode ?? true;
 
   const handleReset = async () => {
     if (!window.confirm('Clear all workloads, events, and queue data? Workers will re-register.')) return;
@@ -112,7 +112,9 @@ export default function App() {
             onSubmitSuccess={() => { refresh(); setActiveTab('workloads'); }}
           />
         )}
-        {activeTab === 'workloads' && <Workloads workloads={workloads} nodes={nodes} refresh={refresh} />}
+        {activeTab === 'workloads' && (
+          <Workloads workloads={workloads} nodes={nodes} refresh={refresh} cpuOnlyMode={cpuOnlyMode} />
+        )}
         {activeTab === 'scheduler' && (
           <SchedulerView workloads={workloads} nodes={nodes} refresh={refresh} cpuOnlyMode={cpuOnlyMode} />
         )}

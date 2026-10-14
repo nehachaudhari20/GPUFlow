@@ -27,19 +27,22 @@ def create_workload(
 ):
     workload = workload_service.create_workload(payload)
     if auto_schedule:
-        has_running = any(
-            w.status == WorkloadStatus.RUNNING
-            for w in workload_service.list_workloads()
-            if w.job_id != workload.job_id
-        )
-        if not has_running:
-            for attempt in range(10):
-                scheduler.schedule_next(workload_service)
-                updated = workload_service.get_workload(workload.job_id)
-                if updated and updated.status != WorkloadStatus.QUEUED:
-                    return updated
-                if attempt < 9:
-                    time.sleep(1)
+        # Always try to place onto a free worker. Priority only orders the
+        # queue; a RUNNING job on one node must not block the other nodes.
+        for attempt in range(10):
+            scheduler.schedule_all_queued(workload_service)
+            updated = workload_service.get_workload(workload.job_id)
+            if updated and updated.status != WorkloadStatus.QUEUED:
+                return updated
+            still_running = any(
+                w.status == WorkloadStatus.RUNNING
+                for w in workload_service.list_workloads()
+                if w.job_id != workload.job_id
+            )
+            if still_running:
+                break
+            if attempt < 9:
+                time.sleep(1)
     updated = workload_service.get_workload(workload.job_id)
     return updated or workload
 

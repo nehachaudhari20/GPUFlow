@@ -24,7 +24,9 @@ export default function Fa2Hub() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div>
         <h2 className="text-2xl font-bold">FA2 Distributed Systems</h2>
-        <p className="text-sm text-slate-400">Live backend data — clocks, coordination, recovery, storage, and scaling</p>
+        <p className="text-sm text-slate-400">
+          CPU-only cluster — clocks, coordination, recovery, storage, and scaling from live backend APIs
+        </p>
       </div>
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (

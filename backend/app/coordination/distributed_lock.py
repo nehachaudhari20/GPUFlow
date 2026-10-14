@@ -57,6 +57,8 @@ class RicartAgrawalaLockManager:
         self._history: List[LockRequest] = []
         self._owner: Optional[str] = None
         self._owner_resource: Optional[str] = None
+        self._replies_received: Set[str] = set()
+        self._outstanding_replies: Set[str] = set()
 
     def set_membership(self, epoch: int, members: Set[str]) -> None:
         with self._lock:
@@ -74,6 +76,8 @@ class RicartAgrawalaLockManager:
         with self._lock:
             self._pending_requests.append(req)
             self._history.append(req)
+            self._outstanding_replies = set(self._live_members - {self.node_id})
+            self._replies_received = set()
         return req
 
     def handle_remote_request(
@@ -98,18 +102,20 @@ class RicartAgrawalaLockManager:
             self._send_reply(remote_node, request_id, timestamp)
 
     def _should_defer(self, incoming: LockRequest) -> bool:
+        """Defer if we requested CS and our (timestamp, node_id) has higher priority (smaller)."""
         for local in self._pending_requests:
             if local.node_id == self.node_id and local.state == LockRequestState.PENDING:
-                if (incoming.lamport_timestamp, incoming.node_id) < (
-                    local.lamport_timestamp,
-                    local.node_id,
+                if (local.lamport_timestamp, local.node_id) < (
+                    incoming.lamport_timestamp,
+                    incoming.node_id,
                 ):
                     return True
         return False
 
     def on_reply(self, from_node: str) -> None:
         with self._lock:
-            self._deferred_replies.discard(from_node)
+            self._replies_received.add(from_node)
+            self._outstanding_replies.discard(from_node)
 
     def try_enter_critical_section(self, resource_key: str) -> bool:
         with self._lock:
@@ -127,19 +133,9 @@ class RicartAgrawalaLockManager:
             )
             if my_req is None:
                 return False
-            required = self._live_members - {self.node_id}
-            if required:
+            needed = self._live_members - {self.node_id}
+            if not needed.issubset(self._replies_received):
                 return False
-            for other in self._pending_requests:
-                if other.node_id == self.node_id:
-                    continue
-                if other.state != LockRequestState.PENDING:
-                    continue
-                if (other.lamport_timestamp, other.node_id) < (
-                    my_req.lamport_timestamp,
-                    my_req.node_id,
-                ):
-                    return False
             my_req.state = LockRequestState.GRANTED
             my_req.granted_at = time.time()
             self._in_critical_section = True
@@ -157,6 +153,8 @@ class RicartAgrawalaLockManager:
                     r.state = LockRequestState.RELEASED
             deferred = list(self._deferred_replies)
             self._deferred_replies.clear()
+            self._replies_received.clear()
+            self._outstanding_replies.clear()
         if self._send_reply:
             for node in deferred:
                 self._send_reply(node, "deferred", self._lamport())

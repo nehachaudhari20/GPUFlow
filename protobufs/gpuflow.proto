@@ -106,6 +106,7 @@ service Worker {
     rpc SendPeerMessage (PeerMessageRequest) returns (PeerMessageResponse) {}
     rpc StoreFile (StoreFileRequest) returns (StoreFileResponse) {}
     rpc RetrieveFile (RetrieveFileRequest) returns (RetrieveFileResponse) {}
+    rpc InvokeFunction (InvokeFunctionRequest) returns (InvokeFunctionResponse) {}
 }
 
 message AssignTaskRequest {
@@ -196,4 +197,18 @@ message RetrieveFileResponse {
     bytes content = 2;
     string checksum = 3;
     string message = 4;
+}
+
+message InvokeFunctionRequest {
+    string invocation_id = 1;
+    string function_name = 2;
+    string parameters_json = 3;
+    float timeout_s = 4;
+}
+
+message InvokeFunctionResponse {
+    bool success = 1;
+    string result_json = 2;
+    string error = 3;
+    string worker_node_id = 4;
 }

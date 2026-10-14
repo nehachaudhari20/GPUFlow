@@ -7,6 +7,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "proto
 
 import gpuflow_pb2
 import gpuflow_pb2_grpc
+from typing import Any, Dict, Tuple
+
 from backend.app.models.workload import Workload
 from backend.app.synchronization.process_sync import get_coordinator_sync
 from backend.app.synchronization.grpc_metadata import apply_vector_to_proto
@@ -44,6 +46,36 @@ class WorkerClient:
         except Exception as e:
             logger.error(f"Error calling AssignTask on worker {self.target}: {e}")
             return False
+
+    def invoke_function(
+        self,
+        invocation_id: str,
+        function_name: str,
+        parameters: Dict[str, Any],
+        timeout_s: float,
+    ) -> Tuple[bool, Any, str, str]:
+        """Run an allowlisted function on the worker process. Returns success, result, error, node_id."""
+        import json
+
+        if not self.target or ":0" in self.target:
+            return False, None, "invalid worker target", ""
+        try:
+            with grpc.insecure_channel(self.target) as channel:
+                stub = gpuflow_pb2_grpc.WorkerStub(channel)
+                resp = stub.InvokeFunction(
+                    gpuflow_pb2.InvokeFunctionRequest(
+                        invocation_id=invocation_id,
+                        function_name=function_name,
+                        parameters_json=json.dumps(parameters),
+                        timeout_s=timeout_s,
+                    ),
+                    timeout=max(timeout_s, 5.0),
+                )
+                result = json.loads(resp.result_json) if resp.result_json else None
+                return resp.success, result, resp.error, resp.worker_node_id
+        except Exception as e:
+            logger.error(f"Error calling InvokeFunction on {self.target}: {e}")
+            return False, None, str(e), ""
 
     def release_resources(self, task_id: str) -> bool:
         if not self.target or ":0" in self.target:

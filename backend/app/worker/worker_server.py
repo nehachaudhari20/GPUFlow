@@ -208,6 +208,29 @@ class WorkerServicer(gpuflow_pb2_grpc.WorkerServicer):
         reply = f"ACK from node {self.node_id} for peer message '{request.message_type}'"
         return gpuflow_pb2.PeerMessageResponse(success=True, reply_payload=reply)
 
+    def InvokeFunction(self, request, context):
+        import json
+
+        from backend.app.services.function_registry import run_allowlisted_function
+
+        try:
+            params = json.loads(request.parameters_json or "{}")
+            result = run_allowlisted_function(request.function_name, params)
+            return gpuflow_pb2.InvokeFunctionResponse(
+                success=True,
+                result_json=json.dumps(result),
+                error="",
+                worker_node_id=self.node_id,
+            )
+        except Exception as exc:
+            logger.error("InvokeFunction failed on %s: %s", self.node_id, exc)
+            return gpuflow_pb2.InvokeFunctionResponse(
+                success=False,
+                result_json="",
+                error=str(exc),
+                worker_node_id=self.node_id,
+            )
+
 def start_worker_server(node_id: str, port: int, scheduler_address: str | None = None, daemon = None) -> grpc.Server:
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     servicer = WorkerServicer(node_id=node_id, scheduler_address=scheduler_address, daemon=daemon)

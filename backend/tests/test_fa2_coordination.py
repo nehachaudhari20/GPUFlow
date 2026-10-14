@@ -42,6 +42,50 @@ def test_lock_lamport_ordering():
     assert req.lamport_timestamp == 2
 
 
+def test_ra_defer_when_local_has_priority():
+    replies: list[str] = []
+    clock = {"t": 0}
+
+    def tick() -> int:
+        clock["t"] += 1
+        return clock["t"]
+
+    lock = RicartAgrawalaLockManager(
+        "a", lambda: clock["t"], tick, send_reply=lambda n, *_: replies.append(n)
+    )
+    lock.set_membership(1, {"a", "b"})
+    lock.request_lock("ledger")
+    lock.handle_remote_request("r1", "ledger", "b", 9)
+    assert replies == []
+
+
+def test_ra_reply_when_incoming_has_priority():
+    replies: list[str] = []
+    clock = {"t": 4}
+
+    def tick() -> int:
+        clock["t"] += 1
+        return clock["t"]
+
+    lock = RicartAgrawalaLockManager(
+        "a", lambda: clock["t"], tick, send_reply=lambda n, *_: replies.append(n)
+    )
+    lock.set_membership(1, {"a", "b"})
+    lock.request_lock("ledger")
+    lock.handle_remote_request("r1", "ledger", "b", 1)
+    assert replies == ["b"]
+
+
+def test_ra_enter_after_all_replies():
+    lock = RicartAgrawalaLockManager("a", lambda: 1, lambda: 2)
+    lock.set_membership(1, {"a", "b"})
+    lock.request_lock("ledger")
+    assert not lock.try_enter_critical_section("ledger")
+    lock.on_reply("b")
+    assert lock.try_enter_critical_section("ledger")
+    lock.release_lock("ledger")
+
+
 def test_deadlock_cycle():
     det = DeadlockDetector()
     det.update_edge("a", "b", "res1")
